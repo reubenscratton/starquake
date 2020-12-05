@@ -161,7 +161,7 @@
         JSR     &FFF4
 
 ; Jump into the game!
-        JMP     &3290
+        JMP     main ;&3290
 
 
 ; These get copied to 0x0090-0x0097

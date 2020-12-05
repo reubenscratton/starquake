@@ -1,3 +1,18 @@
+MAPCHAR ' ', 0
+MAPCHAR '·', $5d
+MAPCHAR '.', $5e
+MAPCHAR '1', $62
+MAPCHAR '2', $63
+MAPCHAR '3', $64
+MAPCHAR '4', $65
+MAPCHAR '5', $66
+MAPCHAR '6', $67
+MAPCHAR '7', $68
+MAPCHAR '8', $69
+MAPCHAR '9', $6A
+MAPCHAR ':', $6B
+MAPCHAR '/', $6C
+
                     org $e00
 .L0e00              jsr S0f11
 .L0e03              jsr S6440
@@ -135,14 +150,12 @@
                     lda $6224,y
                     and #$01
                     sta $7f
-.S0f11              jsr S3478
+.S0f11              jsr clear_screen
                     jmp L3524
                     
 .S0f17              ldx #$c4
                     ldy #$0f
                     jmp L352b
-
-                    MAPCHAR ' ', 0
 
                     EQUB $10, $00, $f1, $00, $01, $00, $01, $00, $81 
                     EQUB $1f, $03, $07 
@@ -4427,13 +4440,13 @@
                     
 .L31ae               rts
                     
-.S31af               lda $40
+.S31af              lda $40
                     sta $8e
                     lda $41
                     sta $8f
                     ldx $42
                     ldy $43
-.S31bb               txa
+.S31bb              txa
                     asl a
                     asl a
                     sta $8c
@@ -4478,7 +4491,7 @@
                     sta $0090,y
                     dey
                     bpl L320d
-                    jsr S3478
+                    jsr clear_screen
                     jsr $7f00
                     lda #$07
                     sta $fe00
@@ -4497,7 +4510,7 @@
                     ldx #$7b
                     ldy #$14
                     lda #$0e
-                    jsr S3491
+                    jsr PLAY_TUNE
 .L3245               lda $9f
                     clc
                     adc #$61
@@ -4517,9 +4530,9 @@
                     lda $48
                     jsr S3513
                     sty $33c9
-                    jsr S3478
-                    ldx #$8b
-                    ldy #$33
+                    jsr clear_screen
+                    ldx LO(GAME_OVER_TEXT)
+                    ldy HI(GAME_OVER_TEXT)
                     jsr $0a80
                     lda #$40
                     ldx #$79
@@ -4527,21 +4540,22 @@
                     ldx #$50
                     ldy #$14
                     lda #$07
-                    jsr S3491
-.L3290               jsr S3478
-                    ldx #$03
-                    ldy #$33
+                    jsr PLAY_TUNE
+
+.main               jsr clear_screen
+                    ldx LO(MENU_TEXT)
+                    ldy HI(MENU_TEXT)
                     jsr $0a80
                     ldx #$00
                     ldy #$14
                     lda #$0a
-                    jsr S3491
+                    jsr PLAY_TUNE
                     bne L32af
-.L32a5               ldx #$53
+.L32a5              ldx #$53
                     ldy #$33
                     jsr $0a80
                     jsr $ffe0
-.L32af               sec
+.L32af              sec
                     sbc #$30
                     beq L32e2
                     cmp #$04
@@ -4570,8 +4584,8 @@
 .L32e2              ldx #$2c
                     ldy #$14
                     lda #$07
-                    jsr S3491
-                    jsr S3478
+                    jsr PLAY_TUNE
+                    jsr clear_screen
                     lda #$07
                     sta $fe00
                     lda #$1e
@@ -4580,28 +4594,44 @@
                     sta $7f6a
                     jsr S111c
                     jmp L31ee
-                    
+
+.MENU_TEXT 
                     EQUB $83, $1f, $0a, $0a 
-                    EQUS "S]T]A]R]Q]U]A]K]E" 
+                    EQUS "S·T·A·R·Q·U·A·K·E" 
                     EQUB $1f, $0f, $14 
                     EQUS "BY  KENTON  PRICE" 
                     EQUB $1f, $0b, $15 
-                    EQUB $43, $5e, $62, $6a, $69, $68 
-                    EQUS "  BUBBLE  BUS" 
-                    EQUB $82, $1f, $0e, $11, $61, $5e, $00 
-                    EQUS "START[GAME" 
-                    81 1f 0e 0d 
-                    62 5e 00 4b 45 59 42 4f 41 
-                    52 44 5b 5a 58 6b 6c 82 1f 0e 0e 63 5e 00 4b 45 
-                    59 42 4f 41 52 44 5b 55 5e 44 5e 82 1f 0e 0f 64 
-                    5e 00 4a 4f 59 53 54 49 43 4b 0d 1f 18 07 83 47 
-                    41 4d 45 5b 4f 56 45 52 1f 12 12 82 43 4f 52 45 
-                    1f 0a 13 45 4c 45 4d 45 4e 54 53 1f 0a 14 52 45 
-                    50 4c 41 43 45 44 1f 16 16 61 61 81 1f 14 0a 53 
-                    43 4f 52 45 5b 61 61 61 61 61 1f 04 0c 41 44 56 
-                    45 4e 54 55 52 45 00 00 53 43 4f 52 45 5b 61 61 
-                    60 1f 0b 0e 54 49 4d 45 00 00 54 41 4b 45 4e 5b 
-                    61 61 6b 61 61 0d 82 1f 08 06 54 48 45 5b 43 4f 
+                    EQUS "C.1987  BUBBLE  BUS" 
+                    EQUB $82, $1f, $0e, $11 
+                    EQUS "0. START[GAME" 
+                    EQUB $81, $1f, $0e, $0d 
+                    EQUS "1. KEYBOARD[ZX:/"
+                    EQUB $82, $1f, $0e, $0e 
+                    EQUS "2. KEYBOARD[U.D."
+                    EQUB $82, $1f, $0e, $0f 
+                    EQUS "3. JOYSTICK"
+                    EQUB $0d
+
+.GAME_OVER_TEXT
+                    EQUB $1f, $18, $07, $83 
+                    EQUS "GAME[OVER"
+                    EQUB $1f, $12, $12, $82 
+                    EQUS "CORE" 
+                    EQUB $1f, $0a, $13 
+                    EQUS "ELEMENTS"
+                    EQUB $1f, $0a, $14 
+                    EQUS "REPLACED"
+                    EQUB $1f, $16, $16 
+                    EQUS "00"
+                    EQUB $81, $1f, $14, $0a 
+                    EQUS "SCORE[00000"
+                    EQUB $1f, $04, $0c 
+                    EQUS "ADVENTURE  SCORE[00`"
+                    EQUB $1f, $0b, $0e 
+                    EQUS "TIME  TAKEN[00:00" 
+                    EQUB $0d
+
+                    82 1f 08 06 54 48 45 5b 43 4f 
                     52 45 53 5b 43 4f 4d 50 4c 45 54 45 1f 02 08 42 
                     55 54 5b 48 4f 57 5b 41 52 45 5b 59 4f 55 5b 47 
                     4f 4e 4e 41 1f 04 0a 47 45 54 5b 48 4f 4d 45 5b 
@@ -4611,29 +4641,36 @@
                     46 41 52 5b 4f 55 54 1f 12 10 49 4e 5b 54 48 45 
                     5b 47 41 4c 41 58 59 0d 
 
-.S3478              lda #$00
+
+; Clear the screen - $6D00 to $7EFF
+
+.clear_screen       lda #$00
                     sta $8e
                     lda #$6d
                     sta $8f
-.L3480              lda #$00
+.cls_l1             lda #$00
                     tay
-.L3483               sta ($8e),y
+.cls_l2             sta ($8e),y
                     iny
-                    bne L3483
+                    bne cls_l2
                     inc $8f
                     lda $8f
                     cmp #$7f
-                    bne L3480
+                    bne cls_l1
                     rts
-                    
-.S3491               stx $8c
+
+.PLAY_TUNE
+; 
+                    stx $8c
                     sta $8d
                     sty $8f
+; ENVELOPE command using block at $046F
                     ldx #$6f
                     ldy #$04
                     lda #$08
                     jsr $fff1
-.L34a0               ldx $8c
+
+.SOUND_LOOP         ldx $8c
                     lda $047d,x
                     cmp #$ff
                     beq L34fc
@@ -4653,38 +4690,44 @@
                     sta $8b
                     ldx $8d
                     lda #$00
-.L34c2               adc $8b
+.L34c2              adc $8b
                     dex
                     bne L34c2
                     sta $8b
                     lda #$11
-                    sta $3503
-.L34ce               ldx #$03
+                    sta SOUND_BLOCK
+
+; SOUND using 8 byte block at SOUND_BLOCK ($3503)
+.L34ce              ldx #$03
                     ldy #$35
                     lda #$07
                     jsr $fff1
-                    inc $3503
-                    inc $3507
-                    lda $3503
+                    inc SOUND_BLOCK
+                    inc SOUND_BLOCK+4
+                    lda SOUND_BLOCK
                     cmp #$14
                     bne L34ce
-.L34e4               lda #$81
+
+; See if key been pressed 
+.L34e4              lda #$81   ; INKEY
                     ldx #$00
                     ldy #$00
                     jsr $fff4
-                    bcc L34fc
+                    bcc KEY_PRESSED ; X holds ASCII code of pressed key
+
+; *FX 19 - wait for vsync
                     lda #$13
                     jsr $fff4
                     dec $8b
                     bne L34e4
                     inc $8c
-                    bne L34a0
-.L34fc              txa
+                    bne SOUND_LOOP
+.KEY_PRESSED        txa 
                     pha
                     jsr L3524
                     pla
                     rts
-                    
+.SOUND_BLOCK                    
                     EQUB $11, $00, $04, $00, $00, $00, $19, $00 
                     EQUB $00, $00, $00, $01, $00, $02, $00, $07
 
@@ -4756,23 +4799,24 @@
                     bpl L3565
                     rts
                     
-                    EQUB $f0, $0f, $f0, $0f, $f0, $0f, $f0, $0f, $f0, $00, $00 
+                    EQUB $f0, $0f, $f0, $0f, $f0, $0f, $f0, $0f, $f0, 
+                    EQUB $00, $00 
                     EQUB $00, $00, $00, $00, $00, $00, $00 
 
-.S3587               pha
+.S3587              pha
                     ldy #$08
-.L358a               lda #$01
+.L358a              lda #$01
                     sta $357e,y
                     dey
                     bpl L358a
                     pla
-.S3593               sta $69
+.S3593              sta $69
                     stx $89
                     lda #$00
                     sta $87
-.L359b               lda #$68
+.L359b              lda #$68
                     sta $88
-.L359f               clc
+.L359f              clc
                     lda $88
                     adc $69
                     sta $8e
@@ -4786,7 +4830,7 @@
                     lda $0017,y
                     ldy #$00
                     jsr $0bb3
-.L35bd               inc $87
+.L35bd              inc $87
                     clc
                     lda $88
                     adc #$10
@@ -4799,7 +4843,7 @@
                     cmp #$09
                     bcc L359b
                     ldy #$08
-.L35d6               lda $0bf7,y
+.L35d6              lda $0bf7,y
                     sta $357e,y
                     dey
                     bpl L35d6
@@ -5522,7 +5566,7 @@
                     49 50 cc cd 3b 41 52 4c 4f 4e cc d6 3b 4d 49 53 
                     45 53 cc f3 47 4f 54 52 55 4e cc fa 4b 00 11 22 
                     44 66 22 22 33 00 88 44 22 66 44 44 cc
-                    
+
 .L62ad               lda #$00
                     sta $8b
 .L62b1               ldy $8b
