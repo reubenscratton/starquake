@@ -13,6 +13,13 @@ MAPCHAR '9', $6A
 MAPCHAR ':', $6B
 MAPCHAR '/', $6C
 
+osword = $fff1
+
+; Zero-page
+SCORE0 = $46
+SCORE1 = $47
+SCORE2 = $48
+
 ; Conventions:
 ;
 ; .ALLCAPS   - for the start of logical units, e.g. subroutines
@@ -36,7 +43,7 @@ MAPCHAR '/', $6C
                     sta $95
                     inc $93
                     jsr $7f00
-.S0e24               ldx #$14
+.S0e24              ldx #$14
                     ldy #$10
                     jmp L352b
                     
@@ -321,9 +328,9 @@ MAPCHAR '/', $6C
                     lda #$77
                     sta $71
                     lda #$00
-                    sta $46
-                    sta $47
-                    sta $48
+                    sta SCORE0
+                    sta SCORE1
+                    sta SCORE2
                     lda #$05
                     sta $49
                     ldy #$00
@@ -616,7 +623,7 @@ MAPCHAR '/', $6C
                     sta $0380,y
                     ldy #$02
                     ldx #$50
-                    jsr S354f
+                    jsr SCORE_ADD
                     clc
                     lda $0b
                     adc #$32
@@ -762,23 +769,23 @@ MAPCHAR '/', $6C
                     jsr $7f00
                     lda #$00
                     sta $84
-.L149b               ldy $84
+.L149b              ldy $84
                     lda $000f,y
                     ldy #$08
-.L14a2               cmp $0017,y
+.L14a2              cmp $0017,y
                     beq L14ad
                     dey
                     bpl L14a2
                     jmp L1506
                     
-.L14ad               sta $83
+.L14ad              sta $83
                     sty $85
                     sta $81
                     lda #$0f
                     sta $86
                     lda $3575,y
                     sta $209e
-.L14bd               lda $86
+.L14bd              lda $86
                     and #$01
                     tax
                     lda $209e,x
@@ -1461,7 +1468,7 @@ MAPCHAR '/', $6C
                     ldx #$44
                     ldy #$60
                     lda #$07
-                    jsr $fff1
+                    jsr osword
 .L1a04               lda $76
                     bne L1a0b
                     jmp L1ab4
@@ -1796,9 +1803,9 @@ MAPCHAR '/', $6C
                     adc #$08
                     sta $3d
                     bne L1cce
-.L1c96               ldx #$00
-.L1c98               ldy #$01
-                    jsr S354f
+.L1c96              ldx #$00
+.L1c98              ldy #$01
+                    jsr SCORE_ADD
                     jsr S6440
                     and #$03
                     clc
@@ -2699,10 +2706,10 @@ MAPCHAR '/', $6C
 .L23d8               dex
                     bmi L2435
                     lda $30,x
-                    cmp $46,x
+                    cmp SCORE0,x
                     beq L23d8
                     ldx #$00
-.L23e3               lda $46,x
+.L23e3              lda SCORE0,x
                     lsr a
                     lsr a
                     lsr a
@@ -2711,7 +2718,7 @@ MAPCHAR '/', $6C
                     adc #$61
                     sta $24e7,y
                     iny
-                    lda $46,x
+                    lda SCORE0,x
                     and #$0f
                     adc #$61
                     sta $24e7,y
@@ -2740,18 +2747,21 @@ MAPCHAR '/', $6C
                     ldx #$ed
                     ldy #$24
                     jsr $0a80
+
+                    ; Copy score somewhere for some reason
                     ldx #$03
-.L242e               lda $46,x
+.L242e              lda SCORE0,x
                     sta $30,x
                     dex
                     bpl L242e
-.L2435               lda #$67
+
+.L2435              lda #$67
                     sta $8f
                     lda #$88
                     sta $8e
                     lda #$00
                     sta $8a
-.L2441               ldx $8a
+.L2441              ldx $8a
                     lda $35,x
                     cmp $3b,x
                     beq L2496
@@ -4360,7 +4370,7 @@ MAPCHAR '/', $6C
                     bne L30f9
                     ldx #$50
                     ldy #$01
-                    jsr S354f
+                    jsr SCORE_ADD
                     ldx $86
 .L30f9               dec $0193,x
                     bne L311e
@@ -4531,17 +4541,21 @@ MAPCHAR '/', $6C
                     jsr GET_DIGIT_CODES
                     stx $33df
                     sty $33de
-                    lda $46
+
+                    ; Write the score directly into the GAME OVER text
+                    lda SCORE0
                     jsr GET_DIGIT_CODES
                     sty $33c5
                     stx $33c6
-                    lda $47
+                    lda SCORE1
                     jsr GET_DIGIT_CODES
                     sty $33c7
                     stx $33c8
-                    lda $48
+                    lda SCORE2
                     jsr GET_DIGIT_CODES
                     sty $33c9
+
+                    ; Draw the GAME OVER text
                     jsr CLEAR_SCREEN
                     ldx LO(GAME_OVER_TEXT)
                     ldy HI(GAME_OVER_TEXT)
@@ -4549,70 +4563,105 @@ MAPCHAR '/', $6C
                     lda #$40
                     ldx #$79
                     jsr S3587
+
+                    ; Play the 'game over' tune ...
                     ldx #$50
                     ldy #$14
                     lda #$07
                     jsr PLAY_TUNE
 
-.main               jsr CLEAR_SCREEN
+                    ; ... and simply fall through back to the menu screen
+
+.MAIN_MENU          
+                    ; Clear the screen and draw the menu text
+                    jsr CLEAR_SCREEN
                     ldx LO(MENU_TEXT)
                     ldy HI(MENU_TEXT)
                     jsr $0a80
+
+                    ; Play the intro tune
                     ldx #$00
                     ldy #$14
                     lda #$0a
                     jsr PLAY_TUNE
-                    bne L32af
-.L32a5              ldx #$53
-                    ldy #$33
+
+                    ; If user pressed a key during tune play, it'll be in A now
+                    bne handle_menu_keypress
+
+.wait_for_menu_key  
+                    ; Draw the "KEYBOARD ZX:/" label (and everything after it) again
+                    ; cos the colour bytes might have changed
+                    ldx LO(keyboard_zx)
+                    ldy HI(keyboard_zx)
                     jsr $0a80
+
+                    ; Wait for user to press a key
                     jsr $ffe0
-.L32af              sec
+
+.handle_menu_keypress
+                    ; If user pressed '0', start the game!
+                    sec
                     sbc #$30
-                    beq L32e2
+                    beq game_intro
+
+                    ; If user pressed anything othen than '1','2','3' then just 
+                    ; jump back to wait for next keypress
                     cmp #$04
-                    bcs L32a5
-                    sbc #$00
+                    bcs wait_for_menu_key
+
+                    ; Convert the keypress '1','2', or '3' to the value 0, 5, or 10
+                    sbc #$00    ; we know carry is clear so this subtracts 1
                     sta $8f
                     asl a
                     asl a
                     adc $8f
+
+                    ; If it's not changed then go back to waiting for a keypress 
                     cmp $0a
-                    beq L32a5
+                    beq wait_for_menu_key
+
+                    ; Store the keyboard option (0,5 or 10) in a zero page byte
                     sta $0a
+
+                    ; Y=A*4, i.e. Y is now 0, 20, or 40. This is the offset of the 
+                    ; colour byte of the keyboard option label in the menu text 
                     asl a
                     asl a
                     tay
+
+                    ; Set the text color of all the input options back to green (2)
                     lda #$82
-                    sta $3353
-                    sta $3367
-                    sta $337b
+                    sta keyboard_zx
+                    sta keyboard_ud
+                    sta joystick
+
+                    ; Set the selected input option's text colour to white (1)
                     lda #$81
-                    sta $3353,y
+                    sta keyboard_zx,y
                     jsr FLUSH_BUFFERS
                     jsr S0e24
-                    jmp L32a5
+                    jmp wait_for_menu_key
                     
-.L32e2              ldx #$2c
+.game_intro         
+                    ; Play the game intro tune
+                    ldx #$2c
                     ldy #$14
                     lda #$07
                     jsr PLAY_TUNE
+
                     jsr CLEAR_SCREEN
-                    lda #$07
+
+                    ; Change the vsync position to 30 (normal mode 5 is 34).
+                    lda #$07     ; Select R7 in the 6845
                     sta $fe00
                     lda #$1e
                     sta $fe01
+
+
                     lda #$1b
                     sta $7f6a
                     jsr S111c
                     jmp L31ee
-
-; 3 colors
-; X ranges from 2 to 24  = 22
-; Y ranges from 6 to 22  = 16
-
-; Let the first label use a full byte for X and for Y
-; Let other labels use 4-bit deltas
 
 .MENU_TEXT 
                     EQUB $83
@@ -4625,12 +4674,15 @@ MAPCHAR '/', $6C
                     EQUB $82
                     EQUB $1f, $0e, $11 
                     EQUS "0. START[GAME" 
+.keyboard_zx
                     EQUB $81
                     EQUB $1f, $0e, $0d 
                     EQUS "1. KEYBOARD[ZX:/"
+.keyboard_ud
                     EQUB $82
                     EQUB $1f, $0e, $0e 
                     EQUS "2. KEYBOARD[U.D."
+.joystick
                     EQUB $82
                     EQUB $1f, $0e, $0f 
                     EQUS "3. JOYSTICK"
@@ -4680,9 +4732,9 @@ MAPCHAR '/', $6C
                     EQUB $0d 
 
 
-; Clear the screen - $6D00 to $7EFF
-
-.CLEAR_SCREEN       lda #$00
+.CLEAR_SCREEN
+                    ; Clear the screen - $6D00 to $7EFF
+                    lda #$00
                     sta $8e
                     lda #$6d
                     sta $8f
@@ -4701,13 +4753,14 @@ MAPCHAR '/', $6C
                     stx $8c
                     sta $8d
                     sty $8f
-; ENVELOPE command using block at $046F
+                    
+                    ; ENVELOPE command using block at $046F
                     ldx #$6f
                     ldy #$04
                     lda #$08
-                    jsr $fff1
+                    jsr osword
 
-.sound_loop         ldx $8c
+.tune_loop          ldx $8c
                     lda $047d,x
                     cmp #$ff
                     beq L34fc
@@ -4726,7 +4779,7 @@ MAPCHAR '/', $6C
                     adc #$01
                     sta $8b
 
-; $8b = $8b * $8d. Think $8b is duration of current note
+                    ; $8b = $8b * $8d. Think $8b is duration of current note
                     ldx $8d
                     lda #$00
 .L34c2              adc $8b
@@ -4734,37 +4787,38 @@ MAPCHAR '/', $6C
                     bne L34c2
                     sta $8b
 
-; SOUND using 8 byte block at SOUND_BLOCK ($3503)
-; It calls SOUND 3 times here, presumably there are 3 channels.
+                    ; SOUND using 8 byte block at SOUND_BLOCK ($3503)
+                    ; It calls SOUND 3 times here, presumably there are 3 channels.
                     lda #$11
                     sta SOUND_BLOCK
 .L34ce              ldx #$03
                     ldy #$35
                     lda #$07
-                    jsr $fff1
+                    jsr osword
                     inc SOUND_BLOCK
                     inc SOUND_BLOCK+4
                     lda SOUND_BLOCK
                     cmp #$14
                     bne L34ce
 
-; See if key been pressed - this breaks out of tune playing
+                    ; See if key been pressed - this breaks out of tune playing
 .key_test           lda #$81   ; INKEY
                     ldx #$00
                     ldy #$00
                     jsr $fff4
                     bcc key_pressed ; X holds ASCII code of pressed key
 
-; *FX 19 - wait for vsync (i.e. delay for 1/50th of a second)
+                    ; *FX 19 - wait for vsync (i.e. delay for 1/50th of a second)
                     lda #$13
                     jsr $fff4
 
-; Decrement note duration counter
+                    ; Decrement note duration counter
                     dec $8b
                     bne key_test
-; Increment note index
+
+                    ; Increment note index
                     inc $8c
-                    bne sound_loop
+                    bne tune_loop
 .key_pressed        txa 
                     pha
                     jsr FLUSH_BUFFERS
@@ -4797,20 +4851,23 @@ MAPCHAR '/', $6C
                     jmp $fff4
                     
 .L352b              clc
+                    ; Add 14 to the address in XY and push it on the stack
                     txa
                     adc #$0e
                     pha
                     tya
                     adc #$00
                     pha
+                    ; ENVELOPE 
                     lda #$08
-                    jsr $fff1
+                    jsr osword
+                    ; SOUND
                     pla
                     tay
                     pla
                     tax
 .S353d              lda #$07
-                    jmp $fff1
+                    jmp osword
                     
 .S3542              pha
                     lda #$13
@@ -4821,17 +4878,17 @@ MAPCHAR '/', $6C
                     bne S3542
                     rts
                     
-.S354f              clc
-                    sed
+.SCORE_ADD          clc
+                    sed ; ooh, BCD arithmetic!
                     txa
-                    adc $48
-                    sta $48
+                    adc SCORE2
+                    sta SCORE2
                     tya
-                    adc $47
-                    sta $47
-                    lda $46
+                    adc SCORE1
+                    sta SCORE1
+                    lda SCORE0
                     adc #$00
-                    sta $46
+                    sta SCORE0
                     cld
                     rts
                     
