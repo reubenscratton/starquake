@@ -13,6 +13,12 @@ MAPCHAR '9', $6A
 MAPCHAR ':', $6B
 MAPCHAR '/', $6C
 
+; Conventions:
+;
+; .ALLCAPS   - for the start of logical units, e.g. subroutines
+; .lowercase - for labels within a logical unit, e.g. local branches 
+
+
                     org $e00
 .L0e00              jsr S0f11
 .L0e03              jsr S6440
@@ -150,22 +156,25 @@ MAPCHAR '/', $6C
                     lda $6224,y
                     and #$01
                     sta $7f
-.S0f11              jsr clear_screen
-                    jmp L3524
+.S0f11              jsr CLEAR_SCREEN
+                    jmp FLUSH_BUFFERS
                     
 .S0f17              ldx #$c4
                     ldy #$0f
                     jmp L352b
 
-                    EQUB $10, $00, $f1, $00, $01, $00, $01, $00, $81 
+                    EQUB $10, $00, $f1, $00, $01, $00, $01, $00
+                    EQUB $81 
                     EQUB $1f, $03, $07 
                     EQUS "YOU  HAVE  ENTERED"
                     EQUB $1f, $13, $09 
                     EQUS "TELEPORT"
                     EQUB $1f, $0a, $0b 
                     EQUS "CODE" 
-                    EQUB $5b, $6b 
-                    EQUB $5b, $83, $28, $43, $29, $4b, $50, $1f, $0c, $0e, $82 
+                    EQUB $5b, $6b $5b 
+                    EQUB $83, $28, $43, $29, $4b, $50
+                    EQUB $1f, $0c, $0e
+                    EQUB $82 
                     EQUS "ENTER[TELEPORTAL" 
                     EQUB $1f, $0c, $10 
                     EQUS "DESTINATION[CODE" 
@@ -569,7 +578,7 @@ MAPCHAR '/', $6C
 .L131b               lda #$03
                     sta $29
                     sta $27
-.L1321               jsr L3524
+.L1321               jsr FLUSH_BUFFERS
                     jsr S2560
                     lda $80
                     pha
@@ -1385,9 +1394,9 @@ MAPCHAR '/', $6C
                     sta $70
                     lda $65ff
                     sta $71
-.L197f               jmp L19af
+.L197f              jmp L19af
                     
-.L1982               lda ($8e),y
+.L1982              lda ($8e),y
                     ora #$08
                     sta ($8e),y
                     iny
@@ -1406,10 +1415,10 @@ MAPCHAR '/', $6C
                     sta $3c
                     bcs L19a8
                     dec $3d
-.L19a8               ldx #$5c
+.L19a8              ldx #$5c
                     ldy #$60
                     jsr S353d
-.L19af               lda $80
+.L19af              lda $80
                     and #$10
                     beq L1a04
                     lda $7d
@@ -1898,7 +1907,7 @@ MAPCHAR '/', $6C
                     lda $000f,y
                     cmp #$0a
                     bne L1d68
-                    jsr L3524
+                    jsr FLUSH_BUFFERS
                     ldx #$fb
                     ldy #$24
                     jsr L352b
@@ -2063,7 +2072,7 @@ MAPCHAR '/', $6C
                     jsr $7f00
                     dec $8b
                     bne L1eb9
-                    jsr L3524
+                    jsr FLUSH_BUFFERS
                     jsr S20d9
 .L1ed1               jsr S2554
                     ldy #$40
@@ -2109,7 +2118,7 @@ MAPCHAR '/', $6C
                     jsr S2eb6
                     lda #$0c
 .L1f22               pha
-                    jsr L3524
+                    jsr FLUSH_BUFFERS
                     jsr S0f17
                     pla
                     asl a
@@ -2175,7 +2184,7 @@ MAPCHAR '/', $6C
                     bne L1f7c
                     lda #$01
                     jsr S2eb6
-                    jsr L3524
+                    jsr FLUSH_BUFFERS
                     ldx #$43
                     ldy #$04
                     jsr L352b
@@ -2198,7 +2207,7 @@ MAPCHAR '/', $6C
 .L1fda               ldx #$9f
                     jsr S2094
                     bne L1ffb
-                    jsr L3524
+                    jsr FLUSH_BUFFERS
                     jsr $ffe0
                     and #$5f
                     ldx #$00
@@ -4438,7 +4447,7 @@ MAPCHAR '/', $6C
                     bcs L31ae
                     jmp L2ebe
                     
-.L31ae               rts
+.L31ae              rts
                     
 .S31af              lda $40
                     sta $8e
@@ -4475,23 +4484,23 @@ MAPCHAR '/', $6C
                     ldy #$02
                     jmp S6526
                     
-.L31ee               php
-                    jsr L3524
+.L31ee              php
+                    jsr FLUSH_BUFFERS
                     jsr S3563
                     lda $25
-                    jsr S3513
+                    jsr GET_DIGIT_CODES
                     sty $33f0
                     stx $33f1
                     lda $24
-                    jsr S3513
+                    jsr GET_DIGIT_CODES
                     sty $33f3
                     stx $33f4
                     ldy #$07
-.L320d               lda $350b,y
+.L320d              lda $350b,y
                     sta $0090,y
                     dey
                     bpl L320d
-                    jsr clear_screen
+                    jsr CLEAR_SCREEN
                     jsr $7f00
                     lda #$07
                     sta $fe00
@@ -4501,8 +4510,10 @@ MAPCHAR '/', $6C
                     sta $7f6a
                     plp
                     bcc L3245
-                    ldx #$f6
-                    ldy #$33
+
+                    ; Show the game complete message: "only a thtupid loony" etc
+                    ldx LO(GAME_COMPLETE_TEXT)
+                    ldy HI(GAME_COMPLETE_TEXT)
                     jsr $0a80
                     lda #$00
                     ldx #$79
@@ -4511,26 +4522,27 @@ MAPCHAR '/', $6C
                     ldy #$14
                     lda #$0e
                     jsr PLAY_TUNE
-.L3245               lda $9f
+
+.L3245              lda $9f
                     clc
                     adc #$61
                     sta $33ba
                     lda $0c
-                    jsr S3513
+                    jsr GET_DIGIT_CODES
                     stx $33df
                     sty $33de
                     lda $46
-                    jsr S3513
+                    jsr GET_DIGIT_CODES
                     sty $33c5
                     stx $33c6
                     lda $47
-                    jsr S3513
+                    jsr GET_DIGIT_CODES
                     sty $33c7
                     stx $33c8
                     lda $48
-                    jsr S3513
+                    jsr GET_DIGIT_CODES
                     sty $33c9
-                    jsr clear_screen
+                    jsr CLEAR_SCREEN
                     ldx LO(GAME_OVER_TEXT)
                     ldy HI(GAME_OVER_TEXT)
                     jsr $0a80
@@ -4542,7 +4554,7 @@ MAPCHAR '/', $6C
                     lda #$07
                     jsr PLAY_TUNE
 
-.main               jsr clear_screen
+.main               jsr CLEAR_SCREEN
                     ldx LO(MENU_TEXT)
                     ldy HI(MENU_TEXT)
                     jsr $0a80
@@ -4577,7 +4589,7 @@ MAPCHAR '/', $6C
                     sta $337b
                     lda #$81
                     sta $3353,y
-                    jsr L3524
+                    jsr FLUSH_BUFFERS
                     jsr S0e24
                     jmp L32a5
                     
@@ -4585,7 +4597,7 @@ MAPCHAR '/', $6C
                     ldy #$14
                     lda #$07
                     jsr PLAY_TUNE
-                    jsr clear_screen
+                    jsr CLEAR_SCREEN
                     lda #$07
                     sta $fe00
                     lda #$1e
@@ -4595,56 +4607,82 @@ MAPCHAR '/', $6C
                     jsr S111c
                     jmp L31ee
 
+; 3 colors
+; X ranges from 2 to 24  = 22
+; Y ranges from 6 to 22  = 16
+
+; Let the first label use a full byte for X and for Y
+; Let other labels use 4-bit deltas
+
 .MENU_TEXT 
-                    EQUB $83, $1f, $0a, $0a 
+                    EQUB $83
+                    EQUB $1f, $0a, $0a 
                     EQUS "S·T·A·R·Q·U·A·K·E" 
                     EQUB $1f, $0f, $14 
                     EQUS "BY  KENTON  PRICE" 
                     EQUB $1f, $0b, $15 
                     EQUS "C.1987  BUBBLE  BUS" 
-                    EQUB $82, $1f, $0e, $11 
+                    EQUB $82
+                    EQUB $1f, $0e, $11 
                     EQUS "0. START[GAME" 
-                    EQUB $81, $1f, $0e, $0d 
+                    EQUB $81
+                    EQUB $1f, $0e, $0d 
                     EQUS "1. KEYBOARD[ZX:/"
-                    EQUB $82, $1f, $0e, $0e 
+                    EQUB $82
+                    EQUB $1f, $0e, $0e 
                     EQUS "2. KEYBOARD[U.D."
-                    EQUB $82, $1f, $0e, $0f 
+                    EQUB $82
+                    EQUB $1f, $0e, $0f 
                     EQUS "3. JOYSTICK"
                     EQUB $0d
 
 .GAME_OVER_TEXT
-                    EQUB $1f, $18, $07, $83 
+                    EQUB $1f, $18, $07
+                    EQUB $83 
                     EQUS "GAME[OVER"
-                    EQUB $1f, $12, $12, $82 
+                    EQUB $1f, $12, $12
+                    EQUB $82 
                     EQUS "CORE" 
                     EQUB $1f, $0a, $13 
                     EQUS "ELEMENTS"
                     EQUB $1f, $0a, $14 
                     EQUS "REPLACED"
                     EQUB $1f, $16, $16 
+.core_digits
                     EQUS "00"
-                    EQUB $81, $1f, $14, $0a 
-                    EQUS "SCORE[00000"
+                    EQUB $81
+                    EQUB $1f, $14, $0a 
+                    EQUS "SCORE["
+.score_digits
+                    EQUS "00000"
                     EQUB $1f, $04, $0c 
                     EQUS "ADVENTURE  SCORE[00`"
                     EQUB $1f, $0b, $0e 
-                    EQUS "TIME  TAKEN[00:00" 
+                    EQUS "TIME  TAKEN["
+.time_digits
+                    EQUS "00:00" 
                     EQUB $0d
 
-                    82 1f 08 06 54 48 45 5b 43 4f 
-                    52 45 53 5b 43 4f 4d 50 4c 45 54 45 1f 02 08 42 
-                    55 54 5b 48 4f 57 5b 41 52 45 5b 59 4f 55 5b 47 
-                    4f 4e 4e 41 1f 04 0a 47 45 54 5b 48 4f 4d 45 5b 
-                    57 48 45 4e 5b 4f 4e 4c 59 5b 41 1f 06 0c 54 48 
-                    54 55 50 49 44 5b 4c 4f 4f 4e 59 5b 57 4f 55 4c 
-                    44 1f 06 0e 57 41 4e 44 45 52 5b 54 48 49 53 5b 
-                    46 41 52 5b 4f 55 54 1f 12 10 49 4e 5b 54 48 45 
-                    5b 47 41 4c 41 58 59 0d 
+.GAME_COMPLETE_TEXT
+                    EQUB $82 
+                    EQUB $1f $08 $06 
+                    EQUS "THE[CORES[COMPLETE"
+                    EQUB $1f $02 $08 
+                    EQUS "BUT[HOW[ARE[YOU[GONNA"
+                    EQUB $1f $04 $0a 
+                    EQUS "GET[HOME[WHEN[ONLY[A"
+                    EQUB $1f $06 $0c 
+                    EQUS "THTUPID[LOONY[WOULD"
+                    EQUB $1f $06 $0e 
+                    EQUS "WANDER[THIS[FAR[OUT"
+                    EQUB $1f $12 $10 
+                    EQUS "IN[THE[GALAXY"
+                    EQUB $0d 
 
 
 ; Clear the screen - $6D00 to $7EFF
 
-.clear_screen       lda #$00
+.CLEAR_SCREEN       lda #$00
                     sta $8e
                     lda #$6d
                     sta $8f
@@ -4660,7 +4698,6 @@ MAPCHAR '/', $6C
                     rts
 
 .PLAY_TUNE
-; 
                     stx $8c
                     sta $8d
                     sty $8f
@@ -4670,7 +4707,7 @@ MAPCHAR '/', $6C
                     lda #$08
                     jsr $fff1
 
-.SOUND_LOOP         ldx $8c
+.sound_loop         ldx $8c
                     lda $047d,x
                     cmp #$ff
                     beq L34fc
@@ -4688,16 +4725,19 @@ MAPCHAR '/', $6C
                     rol a
                     adc #$01
                     sta $8b
+
+; $8b = $8b * $8d. Think $8b is duration of current note
                     ldx $8d
                     lda #$00
 .L34c2              adc $8b
                     dex
                     bne L34c2
                     sta $8b
-                    lda #$11
-                    sta SOUND_BLOCK
 
 ; SOUND using 8 byte block at SOUND_BLOCK ($3503)
+; It calls SOUND 3 times here, presumably there are 3 channels.
+                    lda #$11
+                    sta SOUND_BLOCK
 .L34ce              ldx #$03
                     ldy #$35
                     lda #$07
@@ -4708,33 +4748,38 @@ MAPCHAR '/', $6C
                     cmp #$14
                     bne L34ce
 
-; See if key been pressed 
-.L34e4              lda #$81   ; INKEY
+; See if key been pressed - this breaks out of tune playing
+.key_test           lda #$81   ; INKEY
                     ldx #$00
                     ldy #$00
                     jsr $fff4
-                    bcc KEY_PRESSED ; X holds ASCII code of pressed key
+                    bcc key_pressed ; X holds ASCII code of pressed key
 
-; *FX 19 - wait for vsync
+; *FX 19 - wait for vsync (i.e. delay for 1/50th of a second)
                     lda #$13
                     jsr $fff4
+
+; Decrement note duration counter
                     dec $8b
-                    bne L34e4
+                    bne key_test
+; Increment note index
                     inc $8c
-                    bne SOUND_LOOP
-.KEY_PRESSED        txa 
+                    bne sound_loop
+.key_pressed        txa 
                     pha
-                    jsr L3524
+                    jsr FLUSH_BUFFERS
                     pla
                     rts
 .SOUND_BLOCK                    
                     EQUB $11, $00, $04, $00, $00, $00, $19, $00 
                     EQUB $00, $00, $00, $01, $00, $02, $00, $07
 
-.S3513              pha
+; Given two digits in A (one digit in each nibble, like BCD)
+; returns their printable digit codes in X and Y.
+.GET_DIGIT_CODES    pha
                     and #$0f
                     clc
-                    adc #$61
+                    adc #$61 ; '0'
                     tax
                     pla
                     lsr a
@@ -4742,11 +4787,12 @@ MAPCHAR '/', $6C
                     lsr a
                     lsr a
                     clc
-                    adc #$61
+                    adc #$61 ; '0'
                     tay
                     rts
                     
-.L3524              lda #$0f
+; Flush input and other h/w buffers : *FX 15,0
+.FLUSH_BUFFERS      lda #$0f
                     ldx #$00
                     jmp $fff4
                     
