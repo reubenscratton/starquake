@@ -1,8 +1,7 @@
         ORG $1200
 .start
-        INCLUDE "main.asm"
-        ;INCBIN "main.bin" ; relocs to 0xE00
-        INCBIN "etc_0900.bin" ; relocs to $900
+        INCLUDE "main.asm" ;INCBIN "main.bin" ; relocs to 0xE00
+        INCLUDE "etc_0900.asm" ; relocs to $900
         INCBIN "etc_7F00.bin" ; relocs to  $7F00
         INCBIN "etc_0440.bin" ; relocs to $440
 
@@ -178,7 +177,7 @@
         EQUB 1, 32      ; R1 = 32 chars horizontally
         EQUB 6, 25      ; R6 = 25 chars vertically
 
-; Screen base address = 0x6600 (set R12/13 to 0x0CC0, i.e.0x6600/8)
+; Screen base address = $6600 (set R12/13 to $0CC0, i.e. $6600/8)
         EQUB 12, $0C
         EQUB 13, $C0
 

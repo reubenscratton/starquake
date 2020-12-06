@@ -1,6 +1,7 @@
 MAPCHAR ' ', 0
 MAPCHAR '·', $5d
 MAPCHAR '.', $5e
+MAPCHAR '%', $60
 MAPCHAR '1', $62
 MAPCHAR '2', $63
 MAPCHAR '3', $64
@@ -16,9 +17,15 @@ MAPCHAR '/', $6C
 osword = $fff1
 
 ; Zero-page
+COMPLETION_FRACTION = $0b
+COMPLETION_PERCENT = $0c
 SCORE0 = $46
 SCORE1 = $47
 SCORE2 = $48
+LIVES = $49
+CORE_ITEMS_FOUND = $9f
+
+ROOMS_VISITED = $0380
 
 ; Conventions:
 ;
@@ -69,7 +76,7 @@ SCORE2 = $48
                     jsr S6500
                     ldx #$26
                     ldy #$0f
-                    jsr $0a80
+                    jsr DRAW_TEXT
                     lda #$00
                     sta $86
 .L0e60               jsr $ffe0
@@ -83,7 +90,7 @@ SCORE2 = $48
                     sta $0f95
                     ldx #$95
                     ldy #$0f
-                    jsr $0a80
+                    jsr DRAW_TEXT
                     ldx #$1e
                     ldy #$0f
                     jsr S353d
@@ -129,7 +136,7 @@ SCORE2 = $48
                     sta $0f98
                     ldx $7e
                     ldy #$0f
-                    jsr $0a80
+                    jsr DRAW_TEXT
                     lda #$13
                     jsr $fff4
                     inc $86
@@ -201,14 +208,14 @@ SCORE2 = $48
                     EQUB $1f, $0e, $0c, $81 
                     EQUS "EXCHANGE[[[FOR" 
                     EQUB $1f, $06, $0e 
-                    EQUS "b^[[c^[[d^[[e^[[f^" 
+                    EQUS "1.[[2.[[3.[[4.[[5." 
                     EQUB $0d, $04, $01, $f6, $f1, $ec, $04, $04, $04, $7e, $fa, $f3, $dc 
                     EQUB $7e, $5a, $02, $00, $04, $00, $78, $00, $02, $00
 
 .S102a              jsr L0e00
                     ldx #$da
                     ldy #$0f
-                    jsr $0a80
+                    jsr DRAW_TEXT
 .L1034              jsr S6440
                     and #$03
                     tay
@@ -327,19 +334,27 @@ SCORE2 = $48
                     sta $70
                     lda #$77
                     sta $71
+
+                    ; Reset score to zero
                     lda #$00
                     sta SCORE0
                     sta SCORE1
                     sta SCORE2
+
+                    ; Probably lives
                     lda #$05
-                    sta $49
+                    sta LIVES
+
+                    ; Clear two entire pages of RAM... no idea what for
                     ldy #$00
                     tya
 .L1141              sta $0c00,y
                     sta $0d00,y
                     iny
                     bne L1141
-.L114a              sta $0380,y
+
+                    ; Clear ROOMS_VISITED (1 bit per room)
+.L114a              sta ROOMS_VISITED,y
                     iny
                     bpl L114a
                     ldy #$07
@@ -349,13 +364,14 @@ SCORE2 = $48
                     dey
                     bpl L1152
                     jsr S20a0
+
                     lda #$00
-                    sta $0b
-                    sta $0c
+                    sta COMPLETION_FRACTION
+                    sta COMPLETION_PERCENT
                     sta $88
                     lda #$0c
                     sta $89
-.L116a               jsr S6440
+.L116a              jsr S6440
                     sta $8e
                     jsr S6440
                     asl a
@@ -419,7 +435,7 @@ SCORE2 = $48
                     lda #$00
                     sta $72
                     sta $22
-                    sta $9f
+                    sta CORE_ITEMS_FOUND
                     lda #$01
                     sta $76
                     sta $7a
@@ -567,9 +583,9 @@ SCORE2 = $48
                     sta $76
                     sed
                     sec
-                    lda $49
+                    lda LIVES
                     sbc #$01
-                    sta $49
+                    sta LIVES
                     cld
                     bcs L130b
                     rts
@@ -582,15 +598,15 @@ SCORE2 = $48
                     lda #$ff
                     sta $3c
                     sta $3a
-.L131b               lda #$03
+.L131b              lda #$03
                     sta $29
                     sta $27
-.L1321               jsr FLUSH_BUFFERS
+.L1321              jsr FLUSH_BUFFERS
                     jsr S2560
                     lda $80
                     pha
                     ldy #$2f
-.L132c               lda $0188,y
+.L132c              lda $0188,y
                     tax
                     lda $0158,y
                     sta $0188,y
@@ -606,34 +622,44 @@ SCORE2 = $48
                     lsr a
                     lsr a
                     tay
+
                     lda #$00
                     sta $8f
                     lda $7e
                     and #$07
                     tax
                     sec
-.L1353               rol $8f
+.L1353              rol $8f
                     dex
                     bpl L1353
-                    lda $0380,y
+
+                    ; Has this room been visited?
+                    lda ROOMS_VISITED,y
                     and $8f
-                    bne L137d
-                    lda $0380,y
+                    bne L137d ; Yes, jump fwd
+
+                    ; No, mark the room as having been visited
+                    lda ROOMS_VISITED,y
                     ora $8f
-                    sta $0380,y
+                    sta ROOMS_VISITED,y
+
+                    ; Score += 25
                     ldy #$02
                     ldx #$50
                     jsr SCORE_ADD
+
+                    ; Adventure complete += ((100/512)*255) = 49.8 ~= 50
                     clc
-                    lda $0b
+                    lda COMPLETION_FRACTION
                     adc #$32
-                    sta $0b
-                    lda $0c
+                    sta COMPLETION_FRACTION
+                    lda COMPLETION_PERCENT
                     sed
                     adc #$00
                     cld
-                    sta $0c
-.L137d               ldx $7e
+                    sta COMPLETION_PERCENT
+
+.L137d              ldx $7e
                     ldy $7f
                     jsr S25f0
                     jsr S2571
@@ -814,24 +840,24 @@ SCORE2 = $48
                     sta $0017,y
                     lda #$ff
                     sta $0bf7,y
-                    inc $9f
-                    lda $9f
+                    inc CORE_ITEMS_FOUND
+                    lda CORE_ITEMS_FOUND
                     cmp #$09
                     bcc L1506
                     rts
                     
-.L1506               inc $84
+.L1506              inc $84
                     lda $84
                     cmp #$04
                     bne L149b
                     ldy #$2f
-.L1510               lda $2302,y
+.L1510              lda $2302,y
                     sta $0188,y
                     dey
                     bpl L1510
                     lda #$08
                     sta $8e
-.L151d               jsr S6440
+.L151d              jsr S6440
                     lda $9b
                     and #$18
                     sta $8f
@@ -853,11 +879,11 @@ SCORE2 = $48
                     sta $0189,y
                     dec $8e
                     bne L151d
-                    lda $9f
+                    lda CORE_ITEMS_FOUND
                     sta $70
                     sec
                     lda #$08
-                    sbc $9f
+                    sbc CORE_ITEMS_FOUND
                     lsr a
                     sta $8e
 .L1557               dec $8e
@@ -1786,9 +1812,9 @@ SCORE2 = $48
                     
 .L1c75               clc
                     sed
-                    lda $49
+                    lda LIVES
                     adc #$01
-                    sta $49
+                    sta LIVES
                     cld
                     bne L1cce
 .L1c80               tax
@@ -1813,7 +1839,7 @@ SCORE2 = $48
                     sta $8e
                     ldy #$00
                     ldx #$00
-                    lda $49
+                    lda LIVES
                     beq L1c75
 .L1caf               lda $3b,x
                     cmp $003b,y
@@ -2327,6 +2353,9 @@ SCORE2 = $48
                     bne L20a2
                     rts
                     
+                    ; Got a feeling this data is Blob's gravity, i.e.
+                    ; what gets added to his Y position every frame 
+                    ; he's unsupported.
                     EQUB $01, $00, $01, $00, $01, $02, $01, $02 
                     EQUB $01, $02, $02, $03, $02, $03, $03, $04, $04 
 
@@ -2738,7 +2767,7 @@ SCORE2 = $48
                     sta $89
                     ldx #$e7
                     ldy #$24
-                    jsr $0a80
+                    jsr DRAW_TEXT
                     lda #$60
                     sta $8a
                     inc $8b
@@ -2746,7 +2775,7 @@ SCORE2 = $48
                     sta $87
                     ldx #$ed
                     ldy #$24
-                    jsr $0a80
+                    jsr DRAW_TEXT
 
                     ; Copy score somewhere for some reason
                     ldx #$03
@@ -4524,7 +4553,7 @@ SCORE2 = $48
                     ; Show the game complete message: "only a thtupid loony" etc
                     ldx LO(GAME_COMPLETE_TEXT)
                     ldy HI(GAME_COMPLETE_TEXT)
-                    jsr $0a80
+                    jsr DRAW_TEXT
                     lda #$00
                     ldx #$79
                     jsr S3587
@@ -4533,33 +4562,36 @@ SCORE2 = $48
                     lda #$0e
                     jsr PLAY_TUNE
 
-.L3245              lda $9f
+                    ; Write the number of core items found into the GAME OVER text
+.L3245              lda CORE_ITEMS_FOUND
                     clc
                     adc #$61
-                    sta $33ba
-                    lda $0c
-                    jsr GET_DIGIT_CODES
-                    stx $33df
-                    sty $33de
+                    sta core_digits+1
 
-                    ; Write the score directly into the GAME OVER text
+                    ; Write the completion %age into the GAME OVER text
+                    lda COMPLETION_PERCENT
+                    jsr GET_DIGIT_CODES
+                    stx completed_digits+1
+                    sty completed_digits
+
+                    ; Write the 5-digit score into the GAME OVER text
                     lda SCORE0
                     jsr GET_DIGIT_CODES
-                    sty $33c5
-                    stx $33c6
+                    sty score_digits
+                    stx score_digits+1
                     lda SCORE1
                     jsr GET_DIGIT_CODES
-                    sty $33c7
-                    stx $33c8
+                    sty score_digits+2
+                    stx score_digits+3
                     lda SCORE2
                     jsr GET_DIGIT_CODES
-                    sty $33c9
+                    sty score_digits+4
 
                     ; Draw the GAME OVER text
                     jsr CLEAR_SCREEN
                     ldx LO(GAME_OVER_TEXT)
                     ldy HI(GAME_OVER_TEXT)
-                    jsr $0a80
+                    jsr DRAW_TEXT
                     lda #$40
                     ldx #$79
                     jsr S3587
@@ -4577,7 +4609,7 @@ SCORE2 = $48
                     jsr CLEAR_SCREEN
                     ldx LO(MENU_TEXT)
                     ldy HI(MENU_TEXT)
-                    jsr $0a80
+                    jsr DRAW_TEXT
 
                     ; Play the intro tune
                     ldx #$00
@@ -4593,7 +4625,7 @@ SCORE2 = $48
                     ; cos the colour bytes might have changed
                     ldx LO(keyboard_zx)
                     ldy HI(keyboard_zx)
-                    jsr $0a80
+                    jsr DRAW_TEXT
 
                     ; Wait for user to press a key
                     jsr $ffe0
@@ -4657,7 +4689,7 @@ SCORE2 = $48
                     lda #$1e
                     sta $fe01
 
-
+                    ; TODO: What does this do?
                     lda #$1b
                     sta $7f6a
                     jsr S111c
@@ -4708,7 +4740,9 @@ SCORE2 = $48
 .score_digits
                     EQUS "00000"
                     EQUB $1f, $04, $0c 
-                    EQUS "ADVENTURE  SCORE[00`"
+                    EQUS "ADVENTURE  SCORE["
+.completed_digits
+                    EQUS "00%"
                     EQUB $1f, $0b, $0e 
                     EQUS "TIME  TAKEN["
 .time_digits
@@ -5847,7 +5881,7 @@ SCORE2 = $48
                     00 00 22 55 88 00 00 00 00 00 22 55 88 00 00 00 
                     22 22 55 dd 99 00 00 00 22 22 55 55 44 88 88 00 
                     
-.S6440               ldx $9a
+.S6440              ldx $9a
                     ldy $9b
                     asl $9a
                     rol $9b
@@ -5868,9 +5902,9 @@ SCORE2 = $48
                     sta $9c
                     rts
                     
-.S6461               lda #$00
+.S6461              lda #$00
                     sta $88
-.L6465               ldx $88
+.L6465              ldx $88
                     lda $0100,x
                     bne L646d
                     rts
