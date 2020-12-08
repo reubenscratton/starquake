@@ -23,6 +23,7 @@ SCORE0 = $46
 SCORE1 = $47
 SCORE2 = $48
 LIVES = $49
+GRAVITY_INDEX = $73
 ROOM_LO = $7e
 ROOM_HI = $7f
 CORE_ITEMS_FOUND = $9f
@@ -75,7 +76,7 @@ ROOMS_VISITED = $0380
                     sta $8f
                     ldx #$04
                     ldy #$03
-                    jsr S6500
+                    jsr DRAW_SPRITE
                     ldx #$26
                     ldy #$0f
                     jsr DRAW_TEXT
@@ -128,10 +129,10 @@ ROOMS_VISITED = $0380
                     ldy #$04
                     jsr L352b
                     ldx #$b0
-.L0ebf               lda #$d5
+.L0ebf              lda #$d5
                     sta $86
                     stx $7e
-.L0ec5               lda $86
+.L0ec5              lda $86
                     and #$03
                     ora #$80
                     sta $0fb0
@@ -712,7 +713,7 @@ ROOMS_VISITED = $0380
                     stx $74
                     sty $75
                     lda #$00
-                    sta $73
+                    sta GRAVITY_INDEX
                     pla
                     sta $80
                     jsr S23d4
@@ -833,7 +834,7 @@ ROOMS_VISITED = $0380
                     bne L1473
                     jsr S3563
                     lda #$00
-                    ldx #$73
+                    ldx #GRAVITY_INDEX
                     jsr S3587
                     jsr $7f00
                     lda #$00
@@ -869,7 +870,7 @@ ROOMS_VISITED = $0380
                     ldy #$60
                     jsr S353d
                     lda #$00
-                    ldx #$73
+                    ldx #GRAVITY_INDEX
                     jsr S3593
                     jsr S23d4
                     lda #$07
@@ -974,7 +975,7 @@ ROOMS_VISITED = $0380
                     bne L158f
                     jsr $7f00
                     lda #$00
-                    ldx #$73
+                    ldx #GRAVITY_INDEX
                     jsr S3593
                     lda #$08
                     sta $8e
@@ -996,10 +997,11 @@ ROOMS_VISITED = $0380
                     beq L15df
                     jmp L1581
                     
+                    ; Clearly this is moving one room left.
 .L15df              dec ROOM_LO
                     lda #$03
-                    sta $73
-                    lda #$e8
+                    sta GRAVITY_INDEX
+                    lda #$e8  ; might be moving Blob position to far right of screen
                     sta $70
                     jmp L1321
                     
@@ -1180,7 +1182,7 @@ ROOMS_VISITED = $0380
                     dec $2e
 .L174c               lda $76
                     beq L176d
-                    lda $73
+                    lda GRAVITY_INDEX
                     beq L1762
                     cmp #$01
                     bne L176d
@@ -1393,7 +1395,7 @@ ROOMS_VISITED = $0380
                     bne L18c9
                     ldx $70
                     ldy $71
-                    lda $73
+                    lda GRAVITY_INDEX
                     beq L18f4
                     iny
                     iny
@@ -1411,19 +1413,19 @@ ROOMS_VISITED = $0380
                     bne L1916
                     dey
                     bpl L1901
-                    lda $73
+                    lda GRAVITY_INDEX
                     beq L1926
                     lda $71
                     cmp #$7c
                     bcc L1926
                     bcs L191a
-.L1916               lda $73
+.L1916               lda GRAVITY_INDEX
                     beq L18c9
 .L191a               lda $70
                     and #$f8
                     sta $70
                     lda #$00
-                    sta $73
+                    sta GRAVITY_INDEX
                     inc $71
 .L1926               ldy #$00
                     jsr S20c2
@@ -1431,7 +1433,7 @@ ROOMS_VISITED = $0380
                     lda $70
                     and #$f8
                     sta $8e
-                    lda $73
+                    lda GRAVITY_INDEX
                     bne L1946
                     dec $71
                     sec
@@ -1453,7 +1455,7 @@ ROOMS_VISITED = $0380
                     adc #$02
                     sty $6d
                     tay
-                    lda $73
+                    lda GRAVITY_INDEX
                     beq L1960
                     iny
 .L1960               ldx $8e
@@ -1549,13 +1551,13 @@ ROOMS_VISITED = $0380
                     beq L1a19
                     jmp L1ab0
                     
-.L1a19               ldy $73
-                    lda $20b1,y
+.L1a19              ldy GRAVITY_INDEX
+                    lda GRAVITY,y
                     jsr S2061
-                    lda $73
+                    lda GRAVITY_INDEX
                     cmp #$10
                     bcs L1a29
-                    inc $73
+                    inc GRAVITY_INDEX
 .L1a29               jsr S204e
                     bpl L1a31
 .L1a2e               jmp L1ab4
@@ -1567,7 +1569,7 @@ ROOMS_VISITED = $0380
                     and #$01
                     eor #$01
                     bne L1aaa
-                    lda $73
+                    lda GRAVITY_INDEX
                     cmp #$10
                     bmi L1aaa
                     lda $74
@@ -1600,7 +1602,7 @@ ROOMS_VISITED = $0380
                     sta $8d
                     ldx #$04
                     ldy #$01
-                    jsr S6500
+                    jsr DRAW_SPRITE
                     ldy #$00
                     jsr S20c2
                     lda $89
@@ -1623,7 +1625,7 @@ ROOMS_VISITED = $0380
                     and #$f8
                     sta $70
 .L1ab0               lda #$00
-                    sta $73
+                    sta GRAVITY_INDEX
 .L1ab4               lda #$00
                     sta $77
                     lda $72
@@ -2399,6 +2401,7 @@ ROOMS_VISITED = $0380
                     ; Got a feeling this data is Blob's gravity, i.e.
                     ; what gets added to his Y position every frame 
                     ; he's unsupported.
+.GRAVITY
                     EQUB $01, $00, $01, $00, $01, $02, $01, $02 
                     EQUB $01, $02, $02, $03, $02, $03, $03, $04, $04 
 
@@ -3577,12 +3580,16 @@ ROOMS_VISITED = $0380
                     rol $8d
                     asl $8c
                     rol $8d
+
+                    ; Get object sprite address. We subtract 48 (the size of an object sprite) cos 
+                    ; there is no sprite for index 0 - empty space.
                     lda $8c
-                    adc #$34
+                    adc LO(OBJECTSPRITES-48)
                     sta $8c
                     lda $8d
-                    adc #$5a
+                    adc HI(OBJECT_SPRITES-48)
                     sta $8d
+                    
                     lda $82
                     sta $8e
                     lda $83
@@ -3595,9 +3602,11 @@ ROOMS_VISITED = $0380
                     sta $8c
                     lda #$6c
                     sta $8d
-.L2a3a               ldx #$04
+
+                    ; Draw rock?
+.L2a3a              ldx #$04
                     ldy #$03
-                    jsr S6500
+                    jsr DRAW_SPRITE
                     jmp L2a88
                     
 .L2a44               lda $8d
@@ -3739,7 +3748,7 @@ ROOMS_VISITED = $0380
                     sta $8d
                     ldx #$02
                     ldy #$01
-                    jsr S6500
+                    jsr DRAW_SPRITE
 .L2b46               jsr S2582
                     inc $86
                     clc
@@ -3795,7 +3804,7 @@ ROOMS_VISITED = $0380
                     sta $8c
                     ldx #$03
                     ldy #$02
-                    jsr S6500
+                    jsr DRAW_SPRITE
                     ldx $4c
                     ldy $4d
                     jsr S65e0
@@ -4889,7 +4898,7 @@ ROOMS_VISITED = $0380
                     ldx #$00
                     ldy #$00
                     jsr $fff4
-                    bcc key_pressed ; X holds ASCII code of pressed key
+                    bcc tune_exit ; X holds ASCII code of pressed key
 
                     ; *FX 19 - wait for vsync (i.e. delay for 1/50th of a second)
                     lda #$13
@@ -4902,7 +4911,8 @@ ROOMS_VISITED = $0380
                     ; Increment note index
                     inc $8c
                     bne tune_loop
-.key_pressed        txa 
+
+.tune_exit          txa ; if tune was stopped by keypress, X holds the key code
                     pha
                     jsr FLUSH_BUFFERS
                     pla
@@ -4961,8 +4971,9 @@ ROOMS_VISITED = $0380
                     bne S3542
                     rts
                     
+                    ; Add a 4-digit BCD value in X & Y to the score.
 .SCORE_ADD          clc
-                    sed ; ooh, BCD arithmetic!
+                    sed
                     txa
                     adc SCORE2
                     sta SCORE2
@@ -5227,12 +5238,12 @@ ROOMS_VISITED = $0380
                     cc 00 88 44 44 cc 88 00 11 00 00 11 11 11 00 00 
                     dd 00 bb 77 77 bb bb 00 cc 00 44 22 22 66 44 00 
 
-.ROOM_DATA  ; org $4180
+.ROOM_DATA          ; org $4180
                     INCBIN "rooms.bin" ; 6KB of room data, 12 bytes per room
                     
 
 
-
+                    ; org $5980
                     00 00 00 00 00 00 11 11 11 11 11 11 11 11 11 11 
                     10 01 11 11 11 11 11 11 11 11 11 11 11 11 11 11 
                     11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 
@@ -5247,79 +5258,42 @@ ROOMS_VISITED = $0380
                     11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 
                     11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 
                     11 11 11 11 00 11 00 11 11 11 11 00 11 00 11 11 
-                    00 11 00 11 d9 6f aa ba 4c b6 f9 06 6d 6e 76 d5 
-                    7d af ba 66 59 55 2b 66 8d 31 46 9d 2b 22 9b cc 
-                    45 66 a6 bb dc b9 ce 54 e8 26 e2 dd b7 7e fe dd 
-                    39 37 a2 62 c0 3e 02 00 10 c0 00 70 90 5f 00 ef 
-                    f0 09 00 88 00 7c 15 6c 8d 80 5f 00 04 11 4c 00 
-                    00 7c 02 71 13 00 00 00 5f 00 a7 08 81 00 e8 1b 
-                    0c 00 00 00 73 77 8b f6 d9 cd 7b 67 e8 de b3 d0 
-                    ff 16 3b ed ff 06 e6 bd 61 ff 6f d9 ee 46 d1 ee 
-                    ee c2 ee 8e 3b 61 ee 4f 9d f6 ff 06 ee 2c 77 6f 
-                    f6 ff 06 f6 31 13 20 40 a0 18 01 00 01 d8 8c 80 
-                    20 77 02 42 ee 04 02 31 01 39 13 80 00 a0 08 00 
-                    40 ee 04 18 13 00 00 00 08 98 e4 4e 72 27 20 12 
-                    04 00 00 00 30 33 33 00 e0 ee ee 00 11 01 ff ff 
-                    ee 6e 66 06 77 77 54 15 88 99 e0 ee 00 cc cc cc 
-                    00 ff ff ff 11 01 00 00 ee 0e 77 77 e0 ee ee ee 
-                    00 00 00 00 6e 6e 6e 4e 00 00 13 13 13 13 8b 88 
-                    00 60 62 62 4d 0d 01 01 9b 9b 9b 9b 88 88 88 9b 
-                    62 62 62 62 01 01 00 00 9b 1b 13 00 9b 9b 9b 13 
-                    00 00 00 00 a7 88 aa ff af aa ab 7f 4f 4d 45 ff 
-                    9e 9b 9d ff 7e 01 00 00 70 1e 10 11 f0 87 80 88 
-                    e7 08 00 00 00 00 00 00 11 10 23 55 88 80 cc ee 
-                    00 00 00 00 30 73 e7 cc b0 db ed a6 b0 7b f6 dd 
-                    80 c8 64 aa ba fc 77 3b 6a ee dd bb ff ff 76 bb 
-                    aa 6a c4 8a 34 13 00 00 77 cb 7b 03 dc 7b ca 08 
-                    84 08 00 00 ae ee 0a aa 00 00 00 00 00 00 00 00 
-                    57 77 05 55 ae aa ba bb fc cc 7c 55 f3 bb 2f 22 
-                    57 55 d5 dd fb ee 7f 37 37 cc c3 ff ce 33 3c ff 
-                    fd 77 ef ce b7 ea dd 88 60 bf cf 00 60 df 3f 00 
-                    de 75 bb 11 00 00 00 00 00 00 00 00 00 00 00 00 
-                    00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 
-                    00 00 00 00 60 bf ff 9f 00 00 00 00 00 00 00 00 
-                    60 df ff 9f 28 ff 2f 98 00 80 00 00 00 10 00 00 
-                    41 ff 4f 91 ff bf 6f 00 00 00 00 00 00 00 00 00 
-                    ff df 6f 00 60 bf fb 43 00 00 00 00 00 00 00 00 
-                    60 bf fb 2c 44 66 33 22 00 00 00 c8 00 00 00 31 
-                    22 66 cc 44 11 01 00 00 63 95 98 07 ec fe ff 0e 
-                    88 08 00 00 30 55 bf 78 80 c4 a6 ce 00 00 00 00 
-                    00 00 00 00 50 85 05 55 80 48 08 88 00 00 00 00 
-                    00 00 00 00 55 99 ab d2 08 53 d7 6f 00 00 00 00 
-                    00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 
-                    00 00 00 00 00 00 10 21 10 70 b7 d5 80 16 88 cc 
-                    e0 69 7d a0 22 03 41 0b bd 7b 1e 8e dd cd f1 0e 
-                    55 45 44 85 00 00 00 00 00 00 00 00 00 00 00 00 
-                    00 00 00 00 00 1e 5d 0d 00 00 00 00 00 00 00 00 
-                    00 00 00 00 40 92 99 0a 31 23 45 e0 00 00 e8 02 
-                    00 00 d2 19 00 11 22 44 f0 b7 db de f0 ef ad a5 
-                    00 88 cc ee aa 99 88 99 bb 77 ff 77 c5 a7 b5 a6 
-                    dd bb 77 bb aa cc aa 07 5b 5b 5b 0f c4 84 88 0f 
-                    b5 b5 b5 0e 00 00 00 00 00 00 00 00 00 00 00 00 
-                    00 00 00 00 00 00 00 00 11 d9 75 37 00 b9 6a c6 
-                    00 00 00 00 00 00 00 00 7d 73 d5 19 ef c4 b6 89 
-                    00 00 00 00 00 00 00 00 00 00 00 00 11 d9 75 37 
-                    00 b9 6a c6 00 00 00 00 00 00 00 00 7d 73 d5 19 
-                    ef c4 b6 89 00 00 00 00 00 00 00 00 30 32 01 00 
-                    e0 7f ff 00 bb bb bb bb ef bd d9 cd 7f db b9 3b 
-                    dd dd dd dd bb bb bb bb ff ff ff ff ff ff ff ff 
-                    dd dd dd dd bb bb bb bb ff ff ff ff ff ff ff ff 
-                    dd dd dd dd bb bb bb db ef bd d9 cd 7f db b9 3b 
-                    dd dd dd bd 55 55 55 55 ff ff ff ff ff ff ff ff 
-                    aa aa aa aa 55 55 55 b5 ff ff ff ff ff ff ff ff 
-                    aa aa aa da bb bb bb db ef bd d9 cd 7f db b9 3b 
-                    dd dd dd dd 55 55 55 55 ff ff ff ff ff ff ff ff 
-                    dd dd dd dd 55 55 55 b5 ff ff ff ff ff ff ff ff 
-                    dd dd dd dd bb bb bb bb ef bd d9 cd 7f db b9 3b 
-                    dd dd dd bd bb bb bb bb ff ff ff ff ff ff ff ff 
-                    aa aa aa aa bb bb bb bb ff ff ff ff ff ff ff ff 
-                    aa aa aa da ff ff f0 bf ff ff f0 ff ff ff f0 ff 
-                    ff ff f0 df 55 55 55 55 ff ff ff ff ff ff ff ff 
-                    aa aa aa aa 55 55 55 b5 ff ff ff ff ff ff ff ff 
-                    aa aa aa da 00 00 40 00 00 00 00 01 00 00 80 8c 
-                    00 00 00 00 00 00 10 00 00 00 00 00 00 00 20 00 
-                    00 02 00 00 00 00 20 27 00 20 00 00 00 00 00 00 
-                    00 00 00 04 10 40 60 50 30 00 00 01 81 01 03 02 
+                    00 11 00 11 
+                    
+                    ; org #$5a64 (calc uses #$5a34 cos item 0 is empty space)
+.OBJECT_SPRITES     ; these are monochrome, 48 bytes each
+
+                    ; TODO: Update Beebasm to support a graphic import config directive
+                    cfgbmp(1bpp, mode 5, double_width=true, width=16, height=24)
+
+                    ; TODO: Update Beebasm to support including bitmaps...
+                    incbmp("objects/01_rock.bmp");
+                    incbmp("objects/02_mist.bmp");                    
+                    incbmp("objects/03_bubbles.bmp");
+                    incbmp("objects/04_unsure.bmp");
+                    incbmp("objects/05_tiles.bmp");
+                    incbmp("objects/06_tubes.bmp");
+                    incbmp("objects/07_mises_sign.bmp");
+                    incbmp("objects/08_platform.bmp");
+                    incbmp("objects/09_hoverpad_base.bmp");
+                    incbmp("objects/10_smash_trap.bmp");
+                    incbmp("objects/11_zapway.bmp");
+                    incbmp("objects/12_zapper.bmp");
+                    incbmp("objects/13_mushroom.bmp");
+                    incbmp("objects/14_skeleton_left.bmp");
+                    incbmp("objects/15_skeleton_right.bmp");
+                    incbmp("objects/16_geodesic_dome.bmp");
+                    incbmp("objects/17_spikes_floor.bmp");
+                    incbmp("objects/18_spikes_wall.bmp");
+                    incbmp("objects/19_lift_middle.bmp");
+                    incbmp("objects/20_lift_base_both.bmp");
+                    incbmp("objects/21_lift_base_left.bmp");
+                    incbmp("objects/22_lift_base_right.bmp");
+                    incbmp("objects/23_lift_top.bmp");
+                    incbmp("objects/24_stars.bmp");
+
+                    ; org $5ee4
+                    10 40 60 50 30 00 00 01 81 01 03 02 
                     06 0c 09 03 08 60 b0 60 01 0f 2e aa 00 00 00 00 
                     08 08 88 88 01 02 02 02 03 03 01 01 17 0c 08 2a 
                     3f 07 08 07 aa 88 22 bb cf 0c 03 0f 00 88 cc 0c 
@@ -5651,19 +5625,34 @@ ROOMS_VISITED = $0380
                     jmp S65d4
                     
                     dd 99 bb 99 ff 00 ff 99 dd 99 dd 99 ff 00 
-.S6500               sty $8b
+
+                    ; On entry, X and Y hold sprite size (in chars, ie multiples of 8)
+                    ; ($8c) = address of sprite data
+                    ; ($8e) = screen address to draw to
+
+.DRAW_SPRITE
+                    ; $8b = number of character rows (i.e. 8 * sprite height)
+                    ; $8a = width * 8 (i.e. number of bytes per character row)
+                    sty $8b
                     txa
                     asl a
                     asl a
                     asl a
                     sta $8a
-.L6508              ldy $8a
+
+.draw_sprite_slice  ldy $8a
                     dey
-.L650b              lda ($8c),y
+
+                    ; Draw one row-sized slice of sprite.
+.draw_sprite_pixels lda ($8c),y
                     sta ($8e),y
                     dey
-                    bpl L650b
+                    bpl draw_sprite_pixels
+
+                    ; Move down one character row in screen memory (#$100 bytes)
                     inc $8f
+
+                    ; Move to next slice of sprite data
                     clc
                     lda $8c
                     adc $8a
@@ -5671,8 +5660,10 @@ ROOMS_VISITED = $0380
                     lda $8d
                     adc #$00
                     sta $8d
+
+                    ; Repeat until all slices done
                     dec $8b
-                    bne L6508
+                    bne draw_sprite_slice
                     rts
                     
 .S6526              lda $8e
