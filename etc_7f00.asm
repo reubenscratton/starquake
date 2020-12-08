@@ -53,7 +53,7 @@ L7f57               lda $fe6b
                     sta $fe6e
                     lda #$00
                     sta $fe68
-                    lda #$0f
+                    lda #$0f  ;<-- this is written from 'game_intro' in main
                     sta $fe69
                     rts
                     

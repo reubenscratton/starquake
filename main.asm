@@ -23,6 +23,8 @@ SCORE0 = $46
 SCORE1 = $47
 SCORE2 = $48
 LIVES = $49
+ROOM_LO = $7e
+ROOM_HI = $7f
 CORE_ITEMS_FOUND = $9f
 
 ROOMS_VISITED = $0380
@@ -35,12 +37,12 @@ ROOMS_VISITED = $0380
 
                     org $e00
 .L0e00              jsr S0f11
-.L0e03              jsr S6440
+.L0e03              jsr RAND
                     and #$07
                     cmp #$05
                     bcs L0e03
                     sta $93
-.L0e0e              jsr S6440
+.L0e0e              jsr RAND
                     and #$07
                     cmp $93
                     beq L0e0e
@@ -166,10 +168,10 @@ ROOMS_VISITED = $0380
                     lda #$0b
                     sta $72
                     lda $6223,y
-                    sta $7e
+                    sta ROOM_LO
                     lda $6224,y
                     and #$01
-                    sta $7f
+                    sta ROOM_HI
 .S0f11              jsr CLEAR_SCREEN
                     jmp FLUSH_BUFFERS
                     
@@ -216,7 +218,7 @@ ROOMS_VISITED = $0380
                     ldx #$da
                     ldy #$0f
                     jsr DRAW_TEXT
-.L1034              jsr S6440
+.L1034              jsr RAND
                     and #$03
                     tay
                     lda $000f,y
@@ -225,7 +227,7 @@ ROOMS_VISITED = $0380
                     sta $89
                     lda #$03
                     sta $8e
-.L1047               jsr S6440
+.L1047              jsr RAND
                     cmp #$09
                     bcs L1047
                     tay
@@ -251,7 +253,7 @@ ROOMS_VISITED = $0380
                     sta $8f
                     lda #$00
                     sta $81
-.L107d               ldy $81
+.L107d              ldy $81
                     lda $0085,y
                     ldx #$ff
                     ldy #$00
@@ -270,7 +272,7 @@ ROOMS_VISITED = $0380
                     lda #$0f
                     ldx #$00
                     jsr $fff4
-.L10a5               jsr $ffe0
+.L10a5              jsr $ffe0
                     sec
                     sbc #$31
                     bcc L10a5
@@ -297,7 +299,7 @@ ROOMS_VISITED = $0380
                     sta $88
                     lda #$00
                     sta $89
-.L10d6               lda #$13
+.L10d6              lda #$13
                     jsr $fff4
                     lda $86
                     sta $8e
@@ -323,6 +325,7 @@ ROOMS_VISITED = $0380
                     EQUB $07, $17, $47, $57, $26, $36, $66, $76 
                     EQUB $85, $95, $c5, $d5, $a0, $b0, $e0, $f0 
 
+                    ; Clear a few bits in data...
 .S111c              ldy #$09
 .L111e              lda $61c3,y
                     and #$fd
@@ -330,6 +333,8 @@ ROOMS_VISITED = $0380
                     dey
                     dey
                     bpl L111e
+
+                    ; ???
                     lda #$80
                     sta $70
                     lda #$77
@@ -341,7 +346,7 @@ ROOMS_VISITED = $0380
                     sta SCORE1
                     sta SCORE2
 
-                    ; Probably lives
+                    ; Start with 5 lives
                     lda #$05
                     sta LIVES
 
@@ -365,48 +370,71 @@ ROOMS_VISITED = $0380
                     bpl L1152
                     jsr S20a0
 
+                    ; Reset completion %age
                     lda #$00
                     sta COMPLETION_FRACTION
                     sta COMPLETION_PERCENT
+
+                    ; Set ($88) to $0c00
                     sta $88
                     lda #$0c
                     sta $89
-.L116a              jsr S6440
+
+                    ; Think this is getting a random byte...
+.L116a              jsr RAND
                     sta $8e
-                    jsr S6440
+                    jsr RAND
                     asl a
                     asl a
                     asl a
                     asl a
                     ora $8e
                     sta $8e
-                    jsr S6440
+
+                    ; $8A = RAND(3)
+                    jsr RAND
                     and #$03
                     sta $8a
+
+                    ; 8F = 6 or 7
                     lsr a
                     ora #$06
                     sta $8f
+
+                    ; At this point ($8E) is a random byte address between $0600 and $07FF.
+                    ; This could be room states?
+                    
+                    ; If room byte is not zero (i.e. already contains something) then try again 
                     ldy #$00
                     lda ($8e),y
                     bne L116a
+
+                    ; Set room byte to 1
                     lda #$01
                     sta ($8e),y
                     lda $8e
                     tax
+
+                    ; Map the room byte address into another buffer at $37c0
                     clc
                     adc #$c0
                     sta $8e
                     lda $8f
                     adc #$31
                     sta $8f
+
+                    ; Read a byte from this buffer... it might be controlling where items can go?
                     lda ($8e),y
                     sta $8d
-                    and #$3f
+                    and #$3f 
                     cmp #$30
-                    bcs L116a
+                    bcs L116a ; if low 6 bits are 49-63, try again...
+
                     sta $8c
                     txa
                     sta ($88),y
+
+                    ; $8B = ($8D >> 6) + 1  (i.e. $8b will hold 1,2,3, or 4)
                     lda $8d
                     and #$c0
                     asl a
@@ -414,17 +442,24 @@ ROOMS_VISITED = $0380
                     rol a
                     adc #$01
                     sta $8b
-.L11b8               jsr S6440
+
+                    ; RAND(3) until we get value smaller than $8b
+.L11b8              jsr RAND
                     and #$03
                     cmp $8b
                     bcs L11b8
+
                     adc $8c
+
+                    ; Rotate 8A (which holds a random 0 to 3) so those bits are in top  
                     lsr $8a
                     ror $8a
                     ror $8a
                     ora $8a
                     ldy #$01
                     sta ($88),y
+
+                    ; Advance ($88) by two bytes and loop back if we've not reached $0e00
                     inc $88
                     inc $88
                     bne L116a
@@ -432,6 +467,8 @@ ROOMS_VISITED = $0380
                     lda $89
                     cmp #$0e
                     bne L116a
+
+
                     lda #$00
                     sta $72
                     sta $22
@@ -440,24 +477,24 @@ ROOMS_VISITED = $0380
                     sta $76
                     sta $7a
                     ldy #$0b
-.L11ed               tya
+.L11ed              tya
                     sta $000c,y
                     iny
                     cpy #$14
                     bne L11ed
                     lda #$04
                     sta $8e
-.L11fa               jsr S6440
+.L11fa              jsr RAND
                     cmp #$0a
                     bcs L11fa
                     adc #$14
                     ldy #$08
-.L1205               cmp $0017,y
+.L1205              cmp $0017,y
                     beq L11fa
                     dey
                     bpl L1205
                     pha
-.L120e               jsr S6440
+.L120e              jsr RAND
                     cmp #$09
                     bcs L120e
                     tax
@@ -472,7 +509,7 @@ ROOMS_VISITED = $0380
                     sta $8c
                     sta $8d
                     sta $8b
-.L122b               jsr S6440
+.L122b               jsr RAND
                     and #$02
                     clc
                     adc $8c
@@ -512,7 +549,7 @@ ROOMS_VISITED = $0380
                     sta $052b,x
                     jmp L1288
                     
-.L1275               jsr S6440
+.L1275               jsr RAND
                     lda $9b
                     and #$1f
                     cmp #$13
@@ -538,22 +575,25 @@ ROOMS_VISITED = $0380
                     lda $8d
                     sbc #$04
                     sta $8d
-                    jsr S6440
+                    jsr RAND
                     and #$01
                     beq L1288
-.L12af               jmp L122b
+.L12af              jmp L122b
                     
-.L12b2               lda $8b
+.L12b2              lda $8b
                     cmp #$16
                     bne L12af
                     lda #$09
                     sta $052b
                     lda #$0a
                     sta $052f
+
+                    ; Starting room is at 8,0 on the map, i.e. index 8
                     lda #$08
-                    sta $7e
+                    sta ROOM_LO
                     lda #$00
-                    sta $7f
+                    sta ROOM_HI
+
                     sei
                     sta $23
                     inc $23
@@ -573,7 +613,7 @@ ROOMS_VISITED = $0380
                     lda #$ff
                     sta $3e
                     jsr S2560
-.L12ef               lda $5a
+.L12ef              lda $5a
                     sta $70
                     lda $5b
                     sta $71
@@ -590,7 +630,7 @@ ROOMS_VISITED = $0380
                     bcs L130b
                     rts
                     
-.L130b               lda #$10
+.L130b              lda #$10
                     sta $3b
                     lda $3d
                     ora #$01
@@ -615,17 +655,20 @@ ROOMS_VISITED = $0380
                     dey
                     bpl L132c
                     jsr S20a0
-                    lda $7f
-                    lsr a
-                    lda $7e
+
+                    ; Calculate byte index into ROOMS_VISITED by dividing the 9-bit room index by 8.
+                    lda ROOM_HI
+                    lsr a 
+                    lda ROOM_LO
                     ror a
                     lsr a
                     lsr a
                     tay
 
+                    ; Calculate the bit we are interested within the ROOMS_VISITED byte
                     lda #$00
                     sta $8f
-                    lda $7e
+                    lda ROOM_LO
                     and #$07
                     tax
                     sec
@@ -659,8 +702,8 @@ ROOMS_VISITED = $0380
                     cld
                     sta COMPLETION_PERCENT
 
-.L137d              ldx $7e
-                    ldy $7f
+.L137d              ldx ROOM_LO
+                    ldy ROOM_HI
                     jsr S25f0
                     jsr S2571
                     ldx $70
@@ -678,7 +721,7 @@ ROOMS_VISITED = $0380
                     lda $2f
                     sta $2d
                     lda $26
-                    cmp $7e
+                    cmp ROOM_LO
                     bne L13bb
                     lda $27
                     cmp $7f
@@ -689,10 +732,10 @@ ROOMS_VISITED = $0380
                     sta $2f
                     jmp L1430
                     
-.L13bb               jsr S6440
+.L13bb               jsr RAND
                     ora #$10
                     sta $2e
-                    jsr S6440
+                    jsr RAND
                     and #$01
                     ora #$02
                     sta $2f
@@ -710,7 +753,7 @@ ROOMS_VISITED = $0380
                     bmi L1430
                     ldy $8e
                     lda $6185,y
-                    cmp $7e
+                    cmp ROOM_LO
                     bne L13dd
                     lda $6186,y
                     pha
@@ -721,10 +764,10 @@ ROOMS_VISITED = $0380
                     sta $8e
                     ldy #$00
 .L13fc               sty $8f
-                    jsr S6440
+                    jsr RAND
                     adc #$08
                     sta $2336
-                    jsr S6440
+                    jsr RAND
                     and #$01
                     tax
                     lda $233e,x
@@ -753,13 +796,13 @@ ROOMS_VISITED = $0380
                     iny
                     cpy #$08
                     bne L143c
-                    lda $7e
+                    lda ROOM_LO
                     sta $28
-                    lda $7f
+                    lda ROOM_HI
                     sta $29
-                    lda $7f
+                    lda ROOM_HI ; unnecessary!
                     bne L1461
-                    lda $7e
+                    lda ROOM_LO
                     cmp #$c7
                     beq L1464
                     cmp #$c6
@@ -857,7 +900,7 @@ ROOMS_VISITED = $0380
                     bpl L1510
                     lda #$08
                     sta $8e
-.L151d              jsr S6440
+.L151d              jsr RAND
                     lda $9b
                     and #$18
                     sta $8f
@@ -867,7 +910,7 @@ ROOMS_VISITED = $0380
                     lda $0188,y
                     eor #$08
                     sta $0188,y
-                    jsr S6440
+                    jsr RAND
                     lda $9b
                     and #$18
                     sta $8f
@@ -886,9 +929,9 @@ ROOMS_VISITED = $0380
                     sbc CORE_ITEMS_FOUND
                     lsr a
                     sta $8e
-.L1557               dec $8e
+.L1557              dec $8e
                     bmi L157a
-.L155b               jsr S6440
+.L155b              jsr RAND
                     lda $9b
                     and #$18
                     sta $8f
@@ -899,22 +942,22 @@ ROOMS_VISITED = $0380
                     beq L155b
                     lda #$00
                     ldy #$0c
-.L1571               sta $0188,x
+.L1571              sta $0188,x
                     inx
                     dey
                     bne L1571
                     beq L1557
-.L157a               lda #$01
+.L157a              lda #$01
                     jsr S2eb6
                     lda #$64
-.L1581               pha
-.L1582               jsr S6440
+.L1581              pha
+.L1582              jsr RAND
                     cmp #$05
                     bcs L1582
                     adc #$02
                     sta $95
                     lda #$02
-.L158f               pha
+.L158f              pha
                     lda #$13
                     jsr $fff4
                     lda $603e
@@ -935,7 +978,7 @@ ROOMS_VISITED = $0380
                     jsr S3593
                     lda #$08
                     sta $8e
-.L15bd               jsr S6440
+.L15bd               jsr RAND
                     ldx #$f0
                     and #$01
                     bne L15c8
@@ -953,7 +996,7 @@ ROOMS_VISITED = $0380
                     beq L15df
                     jmp L1581
                     
-.L15df               dec $7e
+.L15df              dec ROOM_LO
                     lda #$03
                     sta $73
                     lda #$e8
@@ -1125,13 +1168,13 @@ ROOMS_VISITED = $0380
                     
 .L1731               lda $2f
                     bmi L174c
-                    jsr S6440
+                    jsr RAND
                     and #$03
                     bne L174c
                     jsr S2dbd
                     lda $2f
                     bpl L174c
-                    jsr S6440
+                    jsr RAND
                     and #$07
                     bne L174c
                     dec $2e
@@ -1688,14 +1731,14 @@ ROOMS_VISITED = $0380
                     and #$f8
                     sta $70
                     clc
-                    lda $7e
+                    lda ROOM_LO
                     adc #$10
-                    sta $7e
+                    sta ROOM_LO
                     bcc L1b92
-                    inc $7f
-.L1b92               jmp L1321
+                    inc ROOM_HI
+.L1b92              jmp L1321
                     
-.L1b95               lda $71
+.L1b95              lda $71
                     cmp #$6c
                     bne L1bb9
                     lda #$7c
@@ -1707,12 +1750,12 @@ ROOMS_VISITED = $0380
                     lda #$07
                     sta $75
                     sec
-                    lda $7e
+                    lda ROOM_LO
                     sbc #$10
-                    sta $7e
+                    sta ROOM_LO
                     bcs L1bb6
-                    dec $7f
-.L1bb6               jmp L1321
+                    dec ROOM_HI
+.L1bb6              jmp L1321
                     
 .L1bb9               lda $72
                     and #$03
@@ -1729,12 +1772,12 @@ ROOMS_VISITED = $0380
                     and #$f8
                     ora #$01
                     sta $72
-                    inc $7e
+                    inc ROOM_LO
                     bne L1bdd
-                    inc $7f
-.L1bdd               jmp L1321
+                    inc ROOM_HI
+.L1bdd              jmp L1321
                     
-.L1be0               lda $72
+.L1be0              lda $72
                     and #$03
                     bne L1c0a
                     lda $74
@@ -1749,12 +1792,12 @@ ROOMS_VISITED = $0380
                     ora #$02
                     sta $72
                     sec
-                    lda $7e
+                    lda ROOM_LO
                     sbc #$01
-                    sta $7e
+                    sta ROOM_LO
                     bcs L1c07
-                    dec $7f
-.L1c07               jmp L1321
+                    dec ROOM_HI
+.L1c07              jmp L1321
                     
 .L1c0a               jsr S20d9
                     jsr S220f
@@ -1832,7 +1875,7 @@ ROOMS_VISITED = $0380
 .L1c96              ldx #$00
 .L1c98              ldy #$01
                     jsr SCORE_ADD
-                    jsr S6440
+                    jsr RAND
                     and #$03
                     clc
                     adc #$06
@@ -1909,7 +1952,7 @@ ROOMS_VISITED = $0380
                     lda $4f
                     sta $71
                     lda $4b
-                    sta $7e
+                    sta ROOM_LO
                     lda $72
                     and #$fc
                     ora $4a
@@ -1972,11 +2015,11 @@ ROOMS_VISITED = $0380
                     sta $8d
 .L1db4               ldx $8d
                     lda $0528,x
-                    cmp $7e
+                    cmp ROOM_LO
                     bne L1e0b
                     lda $0529,x
                     and #$03
-                    cmp $7f
+                    cmp ROOM_HI
                     bne L1e0b
                     lda $0529,x
                     and #$f8
@@ -2028,7 +2071,7 @@ ROOMS_VISITED = $0380
                     lda $0529,y
                     and #$02
                     beq L1e20
-                    lda $7e
+                    lda ROOM_LO
                     sta $0528,y
                     lda $70
                     and #$f8
@@ -2065,14 +2108,14 @@ ROOMS_VISITED = $0380
                     ldx #$03
                     cmp $ae
                     bne L1ed1
-                    lda $7f
+                    lda ROOM_HI
                     beq L1e85
-                    lda $7e
+                    lda ROOM_LO
                     cmp #$6a
                     beq L1ed1
-.L1e85               sty $86
+.L1e85              sty $86
                     ldy #$04
-.L1e89               dey
+.L1e89              dey
                     bmi L1ed1
                     lda $000f,y
                     cmp #$09
@@ -2194,12 +2237,12 @@ ROOMS_VISITED = $0380
                     sta $2341
                     lda #$00
                     sta $8e
-.L1f7c               jsr S6440
+.L1f7c               jsr RAND
                     and #$03
                     tay
                     lda $234c,y
                     sta $2343
-                    jsr S6440
+                    jsr RAND
                     and #$07
                     clc
                     adc #$04
@@ -2630,7 +2673,7 @@ ROOMS_VISITED = $0380
                     beq L22c8
                     eor #$03
                     bne L22d7
-.L22c8               jsr S6440
+.L22c8               jsr RAND
                     and #$03
                     beq L22c8
                     eor #$03
@@ -2642,7 +2685,7 @@ ROOMS_VISITED = $0380
                     beq L22e1
                     eor #$0c
                     bne L22f0
-.L22e1               jsr S6440
+.L22e1               jsr RAND
                     and #$0c
                     beq L22e1
                     eor #$0c
@@ -2669,11 +2712,11 @@ ROOMS_VISITED = $0380
 
 .S2366              ldy #$00
 .L2368              lda $61c3,y
-                    cmp $7e
+                    cmp ROOM_LO
                     bne L23cd
                     lda $61c4,y
                     and #$03
-                    cmp $7f
+                    cmp ROOM_HI
                     bne L23cd
                     tya
                     pha
@@ -2968,7 +3011,7 @@ ROOMS_VISITED = $0380
                     bne L2593
                     rts
                     
-.S25c5               stx $8e
+.S25c5              stx $8e
                     sty $8f
                     stx $8c
                     sty $8d
@@ -2985,19 +3028,22 @@ ROOMS_VISITED = $0380
                     asl $80
                     rol $81
                     lda $80
-                    adc #$80
+                    adc LO(ROOM_DATA)
                     sta $80
                     lda $81
-                    adc #$41
+                    adc HI(ROOM_DATA)
                     sta $81
                     rts
                     
-.S25f0               stx $89
+.S25f0              stx $89
                     stx $84
                     sty $8a
                     sty $85
+
+                    ; Wait for vsync (*FX 19)
                     lda #$13
                     jsr $fff4
+
                     lda #$00
                     sta $93
                     sta $95
@@ -3007,7 +3053,7 @@ ROOMS_VISITED = $0380
                     sta $af
                     sta $ad
                     ldy #$57
-.L260f               sta $0100,y
+.L260f              sta $0100,y
                     dey
                     bpl L260f
                     jsr $7f00
@@ -3377,13 +3423,13 @@ ROOMS_VISITED = $0380
                     jsr S65e0
                     stx $0102
                     sty $0103
-                    jsr S6440
+                    jsr RAND
                     lda $9b
                     and #$1f
                     sta $0104
                     lda #$2c
                     sta $0105
-                    jsr S6440
+                    jsr RAND
                     and #$1c
                     clc
                     adc #$50
@@ -3475,7 +3521,7 @@ ROOMS_VISITED = $0380
                     bne L295d
                     lda #$07
                     sta $8f
-.L29a3               jsr S6440
+.L29a3               jsr RAND
                     ora #$10
                     ldy $8f
                     sta $0150,y
@@ -3628,9 +3674,9 @@ ROOMS_VISITED = $0380
                     ldy #$eb
                     lda ($8e),y
                     beq L2b28
-.L2ace               lda $7e
+.L2ace              lda ROOM_LO
                     sec
-.L2ad1               sbc #$03
+.L2ad1              sbc #$03
                     cmp #$03
                     bcs L2ad1
                     asl a
@@ -3638,8 +3684,8 @@ ROOMS_VISITED = $0380
                     asl a
                     sta $8b
                     ldy $64
-.L2ade               ldx $8b
-.L2ae0               lda $0a68,x
+.L2ade              ldx $8b
+.L2ae0              lda $0a68,x
                     sta ($8e),y
                     iny
                     inx
@@ -3802,9 +3848,9 @@ ROOMS_VISITED = $0380
                     lda #$0c
                     sta $8b
                     ldx #$02
-                    lda $7e
+                    lda ROOM_LO
                     bne L2c1c
-                    lda $7f
+                    lda ROOM_HI
                     beq L2c3a
 .L2c1c               ldy $8d
                     lda ($8a),y
@@ -3882,11 +3928,11 @@ ROOMS_VISITED = $0380
                     sta $88
 .L2ca0               ldy $88
                     lda $0528,y
-                    cmp $7e
+                    cmp ROOM_LO
                     bne L2cc8
                     lda $0529,y
                     and #$03
-                    cmp $7f
+                    cmp ROOM_HI
                     bne L2cc8
                     lda $0529,y
                     and #$f8
@@ -4096,7 +4142,7 @@ ROOMS_VISITED = $0380
                     ldy #$02
                     jmp S65ad
                     
-.S2e76               jsr S6440
+.S2e76               jsr RAND
                     ldx $86
                     rts
                     
@@ -4681,17 +4727,20 @@ ROOMS_VISITED = $0380
                     lda #$07
                     jsr PLAY_TUNE
 
+                    ; Clear the screen
                     jsr CLEAR_SCREEN
 
                     ; Change the vsync position to 30 (normal mode 5 is 34).
+                    ; I'm guessing this reveals the panel.
                     lda #$07     ; Select R7 in the 6845
                     sta $fe00
                     lda #$1e
                     sta $fe01
 
-                    ; TODO: What does this do?
+                    ; Suspect this is configuring Kortink's interrupt timer
                     lda #$1b
                     sta $7f6a
+
                     jsr S111c
                     jmp L31ee
 
@@ -5017,6 +5066,8 @@ ROOMS_VISITED = $0380
                     70 44 77 67 f0 67 ff b7 76 77 77 07 7b 7f 77 0f 
                     00 01 01 21 80 cc 0c 2c 23 22 03 03 ee ee 0e 0e 
                     40 77 14 11 f0 66 0f 88 31 33 33 03 c8 40 04 0c 
+
+.room_related_data 37C0 
                     19 a5 12 5a 5e e3 e4 dc 23 e2 53 1e e3 1e 4c 0b 
                     66 a3 59 52 62 54 c9 1e 64 e4 0e 62 64 19 56 60 
                     23 9a 1e 09 13 e2 1e c9 13 19 e4 e2 e4 14 e1 16 
@@ -5049,6 +5100,8 @@ ROOMS_VISITED = $0380
                     61 65 21 1a 27 1a a0 1a 15 1d 12 1a 20 3f 62 20 
                     27 66 14 ca e1 0d 66 27 e1 27 20 3f 12 21 3f 26 
                     21 3f 27 a5 60 43 3f a4 21 26 26 e3 66 3f ca e1 
+.end-of-room_related_data
+
                     00 41 00 08 00 00 00 cc 80 00 60 00 34 40 33 33 
                     00 00 00 00 00 00 00 00 cc cc 20 c2 00 60 00 10 
                     33 00 00 00 01 00 28 00 00 00 00 00 00 00 00 00 
@@ -5173,390 +5226,13 @@ ROOMS_VISITED = $0380
                     11 00 11 22 22 33 11 00 dd 00 66 77 77 66 66 00 
                     cc 00 88 44 44 cc 88 00 11 00 00 11 11 11 00 00 
                     dd 00 bb 77 77 bb bb 00 cc 00 44 22 22 66 44 00 
-                    d8 5f 13 3f 55 2f ff fa 9e 80 c0 c0 49 30 3f 3f 
-                    11 3f ff 32 60 08 00 c7 41 20 3f 3f 3f 3f ff 4d 
-                    00 20 00 ff 51 40 3f 3f 3f 3f ff dd 03 05 33 81 
-                    41 1d 3f 3f 3f 3f ff ec c0 b0 c3 81 59 50 3f 3f 
-                    15 3f ff 11 06 00 c0 ff 51 4f 12 3f 14 3f ff 9b 
-                    3a 00 00 c7 49 30 3f 3f 12 3f ff d1 30 00 0f c1 
-                    78 5f 60 3f 2f 11 ff ba 60 00 4c 9c 51 40 3f 3f 
-                    12 3f ff 5a 30 08 00 ff 51 40 3f 3f 3f 3f ff 43 
-                    00 18 00 81 59 5f 1f 3f 15 3f ff cb 04 01 03 c1 
-                    41 1d 3f 3f 10 18 ff f1 a0 c4 c0 ff d8 53 5e 3f 
-                    28 3f ff b3 00 00 0f 2f d8 50 7f 3f 14 3f ff a0 
-                    0a 00 ff ff 48 40 1a 25 16 3f ff 0f 18 38 f8 fc 
-                    c0 f0 2a 07 7f 2c c1 c0 c0 80 80 d0 41 10 3f 3f 
-                    3f 3f c7 40 08 00 03 9f 49 36 1c 3f 3f 3f ff 07 
-                    03 01 ff ff 41 10 3f 3f 3f 3f 81 81 c3 f1 c1 81 
-                    78 5f 40 3f 47 2c 41 80 80 80 c0 f0 41 10 3f 3f 
-                    3f 3f ff 07 03 0f 21 81 49 30 3f 3f 3f 3f c7 81 
-                    f9 c1 83 bf 49 30 3f 3f 3f 3f c1 c1 e1 c1 83 81 
-                    30 4f 51 3f 00 3f 5d 0c 6f 07 03 0f b0 30 6a 3f 
-                    40 0d 80 04 c0 80 90 ff c1 10 bf 3f 28 3f 81 81 
-                    03 11 01 21 41 10 3f 3f 3f 3f c1 80 88 84 c0 f1 
-                    41 10 1b 3f 3f 3f ff 07 01 09 03 ff 78 5f 61 3f 
-                    40 08 af 49 01 01 21 07 50 40 1d 3f 3f 3f ff 90 
-                    80 83 f0 e1 48 34 25 13 17 06 fc 04 0a 89 3b ff 
-                    50 40 3f 3f 3f 3f ff 89 81 81 89 99 b0 3f 43 1c 
-                    c0 da 50 80 c0 c0 f8 ff d9 50 bf 3f 28 3f ff 05 
-                    03 11 03 23 d9 4f a6 3f 87 2f 80 94 c0 a8 82 90 
-                    b0 f0 5c 0f 46 2e fe a5 84 9e 8c 8c 59 53 0c 3f 
-                    3f 3f 81 80 3c 00 00 ff 49 30 3f 3f 3f 3f bf 0b 
-                    05 01 03 c7 79 50 bf 3f 2c 3f 81 80 fc c0 80 80 
-                    d8 3f 40 15 52 1b cf 03 33 1b 07 ff 48 30 dc ff 
-                    3f 3f ff c7 c3 87 c1 81 a8 f0 2a 14 7f 07 c1 c0 
-                    cc e0 c0 df 70 ff 6a 26 40 07 89 00 00 00 02 c0 
-                    41 10 3f 3f 3f 3f ff 16 20 18 f0 ff 28 4f 68 3f 
-                    00 3f a7 07 07 0f 07 c3 40 10 2e 3f 3f 3f e1 80 
-                    83 81 81 ff 58 22 1d 1b 3f 3f ff 09 c1 eb c1 c1 
-                    40 10 3f 3f 3f 3f 99 88 88 c8 88 8f 58 9d d2 de 
-                    1c 3f ff 09 01 01 01 81 39 94 8a 0c 98 00 23 01 
-                    89 41 03 07 29 f0 aa 2b 96 07 90 80 f8 88 c0 c0 
-                    40 4d 5c 1a 46 0f 8e 81 c0 c0 c0 ff 71 3f a4 1c 
-                    28 3f ff 98 00 00 0c 00 29 16 bf 3f 28 3f c7 00 
-                    24 10 00 00 30 49 5e 3f 00 3f cf 09 39 1d 19 99 
-                    40 90 24 1a 3f 3f ff 88 80 c0 ff ff 50 4d 1c 3f 
-                    3f 3f 81 08 00 00 c0 ff 58 56 3f 3f 3f 3f ff 09 
-                    01 25 01 93 60 ff 6f 1c 42 0f e0 81 80 8c 80 c0 
-                    49 30 1b 3f 3f 3f ff 81 0b 19 03 ff d8 ff 5a 14 
-                    40 11 43 03 6f 33 03 01 58 04 1a 2c 3f 3f ff c9 
-                    c1 c1 c1 c7 48 4d 18 1c 3f 3f c1 81 31 13 91 81 
-                    58 93 0a 1e 3f 3f 8f 81 b1 81 81 c1 58 d0 2e 14 
-                    3f 3f 81 89 81 a0 81 ff b0 33 5a 15 45 0f 84 f1 
-                    81 03 ff ff 40 d3 1e 18 3f 3f ff 96 00 20 83 83 
-                    a8 3d 52 3f 1c 3f ff 66 40 0a c0 ff 58 dd 22 3f 
-                    3f 3f ff 45 04 00 00 81 40 10 1a 3f 3f 3f ff 9f 
-                    0f 1f 07 ff 50 4d 23 3f 3f 3f 99 99 9d c9 81 81 
-                    50 0d 1a 1c 3f 3f ff 85 81 85 81 81 40 2d e8 ff 
-                    24 3f ff 18 00 20 00 01 40 10 3f 3f 3f 3f 93 01 
-                    05 21 01 ff b0 4f 54 3f 47 1d c1 80 ec e6 e0 ff 
-                    c9 3f af 3f 28 3f ff 2b 14 00 00 48 50 9d 5c 1e 
-                    5a 00 41 8f 01 31 01 ff 50 4d 24 3f 3f 3f cf 82 
-                    80 80 a3 e1 40 39 dc ca 1e 3f 81 05 21 01 ff ff 
-                    40 20 ac 5d 10 3f c1 81 73 9b 93 97 40 f2 bf 5b 
-                    48 25 ff 64 00 98 c6 c1 40 08 12 2c 3f 3f ff 09 
-                    21 01 31 f7 48 33 ca ff 1c 3f 83 81 a1 83 89 81 
-                    58 20 aa 5d d0 db ff 87 43 aa 80 df 48 4e 3f 3f 
-                    3f 3f 81 80 84 20 00 81 40 09 da e8 1c 3f ff 25 
-                    01 03 7f ff 48 99 cc de 1a 3f 81 81 89 81 a1 83 
-                    40 22 cb cd db dd 81 eb 81 eb 81 83 43 83 4a 12 
-                    15 3f 81 80 a6 80 f0 ff 58 5d 1c 3f 3f 3f ff 08 
-                    00 00 00 ff d8 56 7f 3f 1a 3f ff 1d 0d 39 01 81 
-                    c0 14 51 3f 44 13 8d 81 99 c3 c3 e7 40 14 11 3f 
-                    3f 3f ff 88 80 d2 c0 89 58 83 da d4 1e 3f e1 00 
-                    08 00 3e ff 58 50 2c 3f 3f 3f ff 19 09 03 07 ff 
-                    40 08 14 2a 3f 3f 9f 90 8a c2 ce df 78 ff 6c 1b 
-                    51 0d c1 07 61 19 01 8d 40 10 1b 3f 3f 3f ff 80 
-                    80 80 94 81 50 45 3f 3f 3f 3f 81 00 00 00 00 81 
-                    58 50 1b 3f 3f 3f ff 01 01 39 01 81 40 18 14 3f 
-                    3f 3f 81 81 89 c3 89 81 60 42 db d1 5d 1e ff 88 
-                    80 ea c3 81 79 3f 80 3f a0 06 c0 00 0c f0 00 00 
-                    58 42 cb d1 1d 3f 83 ef 83 fb c3 83 58 20 1a 1d 
-                    3f 3f ff 93 83 da c0 ff 58 5d 24 3f 3f 3f ff d1 
-                    d1 11 01 81 58 5d e4 ff 1a 3f 81 a1 8d 81 81 81 
-                    58 59 1c 3a 3f 3f e7 e7 f7 e7 e7 ef 50 44 21 3f 
-                    3f 3f 89 8c 98 80 80 ff 48 3d 3f 3f 3f 3f ff 10 
-                    10 10 00 ff 48 dd d2 ff 15 3f ff 01 01 01 01 81 
-                    50 dd 22 24 3f 3f ff 81 81 83 83 83 50 40 2d 3f 
-                    3f 3f 89 a1 81 89 81 83 50 4d 24 3f 3f 3f 81 80 
-                    8c 80 80 81 40 11 3f 3f 3f 3f 81 24 00 42 10 81 
-                    40 30 1b 1d 3f 3f 81 01 01 01 15 81 50 09 1e 2c 
-                    3f 3f 81 81 fd 81 85 f5 50 3d 1c 1a 3f 3f 81 88 
-                    80 80 e0 ff 48 3d 12 1d 3f 3f ff 01 01 01 05 81 
-                    40 0d 18 1b 3f 3f c3 81 00 08 80 c1 60 13 5e 3f 
-                    12 3f ff 80 28 00 03 ff 60 f3 19 13 7f 1d 81 00 
-                    18 06 c0 ff 60 19 5c 3f 12 3f 81 01 31 03 0f ff 
-                    48 33 3f 3f 3f 3f ef 8f bf 81 fc fd 58 3d d8 d2 
-                    1c 3f ff 00 20 00 20 ff 40 40 1a 1c 3f 3f ff 01 
-                    11 71 11 81 48 30 1c 0a ff cd 81 81 a5 bd a5 81 
-                    48 30 1b 0a 3f 3f 83 80 a0 a8 a0 81 58 59 1e 3f 
-                    3f 3f 87 11 41 05 01 ff 40 1d 3f 3f 3f 3f 81 80 
-                    80 80 80 ff 50 83 db dc 14 3f 81 00 00 00 18 81 
-                    50 4a 3f 3f 3f 3f 81 01 01 01 01 ff 60 bf 68 7f 
-                    20 3f fd 90 80 a4 c0 00 58 5d 5a 3f 5d 68 ff 20 
-                    00 06 00 00 b0 f0 5b 28 5c 67 81 01 03 0b 00 40 
-                    50 0d 58 5a 60 68 c1 00 00 10 c0 00 38 5a 7f 7f 
-                    68 7f ff 18 12 50 00 00 58 59 1e 3f 3f 3f ff 25 
-                    01 01 01 81 40 10 29 3f 3f 3f ff 80 80 a7 80 bf 
-                    58 56 14 3f 3f 3f fd 20 00 cc 00 83 58 59 3f 3f 
-                    3f 3f ff 39 11 01 01 ff 40 13 cb fa 0c 3f 81 81 
-                    99 81 81 81 a0 5f 5a 64 64 4d 81 87 81 b1 8d 81 
-                    40 11 3f 3f 3f 3f 81 88 80 a0 8c 81 58 83 d2 ff 
-                    1d 3f ff 04 20 00 24 81 50 90 1c 1e 3f 3f ff 21 
-                    05 0d 25 81 38 ff 4a 0d 5b 1e 81 b6 80 9b 80 ff 
-                    b0 4f 51 3f 62 1c ff 25 61 0b 31 81 43 10 1d 3f 
-                    3f 3f ff 90 c0 83 80 ff 5b 53 15 3f 3f 3f ff 11 
-                    01 c1 1f bf 4b 36 3f 3f bf bf 81 91 85 a1 89 81 
-                    43 1d 24 3f ff ff ff 9e 80 a0 80 81 5b 53 da ff 
-                    dd 3f ff 25 01 01 25 81 50 48 96 d1 ff e3 81 80 
-                    a2 e0 e3 ff 48 03 59 5b ff 3f ff 21 01 09 c1 c1 
-                    50 4d 28 3f bf bf 83 80 c0 04 10 01 48 bd 12 7f 
-                    ff ff ff 07 07 0f 0f ff 50 d0 6c 5a bf bf 81 a1 
-                    85 c1 c1 f7 c3 4f 80 21 a9 07 40 10 04 20 08 20 
-                    50 43 14 3f bf bf 81 85 89 a1 89 81 50 80 2a 14 
-                    bf bf 81 80 88 80 98 ff 40 3e 11 15 bf 3f 81 01 
-                    01 23 0f ff 50 10 1c 1b ff bf ff 80 84 fc 87 81 
-                    60 1f 4c 3f 51 1b 81 0c 60 12 c0 ff 5b 5d 1c 3f 
-                    ff 3f ff 3b 13 01 21 81 4b 30 3f 3f bf bf bf 81 
-                    fd 88 a3 8f 5b 5d 1c 3f bf bf 81 8d 81 21 81 c1 
-                    4b 30 0d 3f bf bf 81 83 91 85 a1 81 41 83 ca ff 
-                    de ff 81 a0 a0 82 f0 ff 40 dd dc d2 16 3f ff 08 
-                    00 00 00 ff 40 03 0b 3f 3f 3f c1 04 10 00 00 ff 
-                    50 00 2c 3f 3f 3f 81 01 39 03 07 ff 40 83 14 1c 
-                    3f 3f ff a0 80 c0 c8 81 58 30 3f 1e ff da ff 64 
-                    44 00 3e ff 58 e0 19 14 3f 3f c1 01 01 31 01 ff 
-                    40 70 2a 1c 3f 3f 81 a1 83 80 9e ff 50 1e 93 5d 
-                    08 3f ff 41 81 0b 01 f9 40 0d 28 3f 3f 3f ff 84 
-                    c0 03 08 01 50 00 3f 3f 3f 3f 81 18 00 81 00 ff 
-                    58 0d 14 3f 3f 3f ff 11 11 93 03 c3 5b 33 d4 d2 
-                    cc d6 81 c8 aa aa 80 ff 53 0d 1c 2a 3f 3f 8f 09 
-                    21 01 01 df 53 d0 2a 18 3f 3f c1 84 20 0a 80 df 
-                    43 04 0c 3f 3f 3f 81 10 18 00 00 ff 53 0d 24 3f 
-                    3f 3f ff 09 01 01 01 81 50 dd d8 d2 24 3f ff 08 
-                    00 00 80 81 40 70 a8 5a 0c 3f ff 06 08 00 7f ff 
-                    90 0e 15 3f 3f 3f ff 19 01 03 f3 c3 58 e0 ea 14 
-                    3f 3f 81 80 80 e0 c3 df 50 00 3f 3f 3f 3f ff 18 
-                    18 00 ff ff 50 00 1c 3f 3f 3f ff 21 05 1d c5 c1 
-                    58 90 2d 1e 3f 3f ff 88 80 80 93 87 50 93 19 1c 
-                    3f 3f f9 11 01 03 cf ff 50 04 1c 3f 3f 3f 81 80 
-                    b0 b0 bf ff 48 0d 1e 1a 3f 3f ff 04 10 30 f0 ff 
-                    48 00 3f 3f 3f 3f c3 01 09 01 33 81 5b 00 1a 3f 
-                    3f 3f ff 82 80 9c 80 81 53 33 d2 d4 d6 cc ff 49 
-                    2a 2a 00 ff 43 00 3f 3f 3f 3f ff c3 c3 c3 c3 ff 
-                    5b 07 1c 3f 3f 3f ff 83 82 c0 ff ff 4b 09 da ff 
-                    0c 3f 81 81 09 03 a1 81 50 9d 0a 1e 3f 3f 81 a9 
-                    81 85 a1 81 80 de 12 18 ff d4 ff 80 00 00 88 83 
-                    38 0e 05 3f 3f 3f c7 40 00 10 00 ff 48 3e d6 dc 
-                    d1 db ff 10 00 00 18 ff 88 ed 12 0e 3f 3f ff 09 
-                    01 09 21 81 50 d0 2d 0a 3f 3f c1 a1 81 81 a1 87 
-                    50 0d 1a 3f 3f 3f 87 a5 81 8b 83 83 88 de 49 16 
-                    5b 25 ff 80 80 98 86 81 40 e7 9c 59 0e 3f ff 05 
-                    02 00 3f ff 40 00 1c 3f 3f 3f ff 03 07 1f c7 c1 
-                    48 10 1e 1d ff db 81 81 81 eb c1 81 43 30 2a 15 
-                    ff df 81 80 a0 80 8f df 5b 33 d8 da dc de ff 44 
-                    00 00 aa ff 53 99 da dc 1e 3f ff 14 00 00 2a ff 
-                    7b 00 3f 3f 3f 3f ff 40 08 22 08 81 43 00 3f 3f 
-                    3f 3f 81 01 01 01 01 ff 40 00 3f 3f 3f 3f 81 81 
-                    81 c1 81 81 80 0e d6 ff 02 3f 83 81 81 81 81 f1 
-                    40 de 25 22 3f 3f ff c0 c0 80 80 83 58 ed 1c 22 
-                    3f 3f ff 01 01 01 01 c1 80 de 06 0a 3f 3f 81 a9 
-                    81 85 a1 81 40 00 3f 3f 3f 3f 87 81 81 83 81 81 
-                    40 0d e2 ff 0c 3f 83 a9 81 81 89 81 88 9e 41 1e 
-                    4d 13 81 86 98 80 83 ff 58 06 1a 3f 3f 3f ff 21 
-                    01 03 ff ff 40 d2 cb dc 0d 3f c1 eb c1 c0 c0 ff 
-                    40 d0 2a 0c 3f 3f 81 88 80 00 1c ff 53 03 14 3f 
-                    3f 3f ff 21 09 03 0f 87 53 e3 1d 25 3f 3f ff 88 
-                    a2 80 90 83 4b 0d e4 ff 22 3f ff 28 00 00 00 81 
-                    4b 0d 0c 3f 3f 3f 81 09 01 21 09 81 9b 0e 13 3f 
-                    3f 3f ff 84 80 80 84 c1 48 00 1a 3f 3f 3f 81 01 
-                    09 19 09 81 90 2e c9 cd 06 3f f1 99 81 9f 80 ff 
-                    90 e3 0b 05 3f 3f 83 c3 d3 83 03 ff 90 e4 11 02 
-                    ff cd c1 80 80 f0 c0 ff 80 0e 06 3f 3f 3f 81 05 
-                    11 41 01 ff 50 00 3f 3f 3f 3f 81 c1 91 85 81 81 
-                    50 42 da d1 1d 3f 81 83 83 db c3 81 50 20 1a 1c 
-                    3f 3f ff 83 93 b7 93 9f 50 00 3f 3f 3f 3f ff c0 
-                    c7 f3 c3 df e8 e3 db d6 dc d1 ff 00 81 81 99 ff 
-                    88 0e e1 ff 0e 3f ff 01 fd c1 81 bf 4b 0d 0a 3f 
-                    3f 3f 87 e0 c8 c2 e0 ff 8b e0 2a 05 3f 3f 83 03 
-                    23 03 0f df 4b 00 3f 3f 3f 3f 81 c1 91 81 85 81 
-                    4b 0d 1a 3f 3f 3f 81 e0 80 80 80 ff 3b e3 19 03 
-                    3f 3f d1 01 09 03 41 ff 50 d0 2a 0c 3f 3f 81 89 
-                    81 81 9c ff 50 d0 2a 16 3f 3f ff c4 d4 84 10 ff 
-                    40 30 2a 1e 3f 3f ff 18 08 00 1f ff 40 03 d9 ff 
-                    1e 3f ff 24 00 00 c3 ff 40 00 3f 3f 3f 3f ff 07 
-                    03 03 c3 c1 48 00 3f 3f 3f 3f 81 83 89 a1 81 81 
-                    48 22 db dc ca cd 81 db 81 e7 81 81 48 0d c0 ff 
-                    1c 3f 9f 01 21 03 c1 81 e0 e4 21 15 3f 3f df 99 
-                    b1 91 80 ff 40 e8 d2 da d4 dc ff d5 c1 81 01 fd 
-                    88 0e 01 2c 3f 3f bf a0 80 80 87 ff 58 99 da dc 
-                    1e 3f ff 14 00 00 ff ff 58 90 22 1c ff de ff 16 
-                    00 00 ff ff 80 0e 0c 1a 3f 3f 81 00 10 30 f3 ff 
-                    58 33 d9 da dd de ff 18 00 00 ff ff 58 07 9c 62 
-                    0e 3f ff 01 02 00 ff ff 58 99 e2 e3 e4 e5 ff 18 
-                    18 00 c3 ff 58 00 3f 3f 3f 3f ff 18 18 00 c3 ff 
-                    58 30 1a 1c 3f 3f ff 01 11 31 f9 c1 60 6f 62 1a 
-                    15 3f ff 80 86 80 a8 81 78 0f 5a 3f 14 3f c1 01 
-                    0b 31 01 ff 40 00 3f 3f 3f 3f 81 c3 91 c3 89 c3 
-                    54 00 3f 3f 3f 3f 81 81 91 c5 81 81 5c 03 da ff 
-                    0d 3f 81 c1 85 81 a3 81 55 00 3f 3f 3f 3f ff 81 
-                    80 bf 81 fd f5 0e 14 3f 3f 3f fd 81 01 f1 e1 ff 
-                    55 0d da ff 1c 3f ff a0 80 88 88 81 55 00 1b 3f 
-                    3f 3f ff 20 00 1c 00 ff 55 0d d2 ff 16 3f ff 20 
-                    02 00 03 ff 55 0d 24 3f 3f 3f ff 39 11 11 81 c1 
-                    50 0d 1c 3f 3f 3f ff 88 80 88 98 81 48 0e d4 ff 
-                    26 3f ff 20 00 10 01 fd 48 de 0e 1c ff d2 ff 01 
-                    01 09 e9 81 4c 0d 22 3f 3f 3f ff e0 c0 88 80 81 
-                    44 0d 0a 0d 3f 3f c1 23 21 01 03 ff 4c 00 3f 3f 
-                    3f 3f 81 88 c2 90 80 ff 44 03 da ff 1d 3f ff 09 
-                    01 01 25 81 4a 09 1c 3f 3f 3f c3 81 91 81 89 c3 
-                    4c 00 1b 3f 3f 3f 81 80 c0 8c 80 81 4c 03 15 3f 
-                    3f 3f 81 01 21 03 0f ff 55 02 1b 3f 3f 3f fd 81 
-                    c1 ef 87 bf 55 3d e8 ff 14 3f ff a0 08 00 08 01 
-                    55 00 3f 3f 3f 3f 81 01 01 01 01 ff 4d 03 14 3f 
-                    3f 3f ff a0 88 80 88 81 4d 00 1b 3f 3f 3f ff 25 
-                    01 0d 09 81 45 0d 0a 3f 3f 3f c1 a9 81 85 a1 81 
-                    48 00 3f 3f 3f 3f 81 81 85 81 91 81 68 ed 12 06 
-                    3f 3f ff 91 a1 89 a1 81 88 de 06 1a ff cc 83 c9 
-                    89 a1 a5 81 5c 00 3f 3f 3f 3f 81 88 82 c0 90 81 
-                    54 00 1b 3f 3f 3f ff 20 00 18 00 81 4c 0d d4 ff 
-                    22 3f ff 60 08 00 08 81 5c 09 1c 3f 3f 3f 81 01 
-                    23 01 09 81 4a 00 3f 3f 3f 3f c3 81 a1 85 91 81 
-                    5c 00 3f 3f 3f 3f 81 80 a2 88 80 81 54 06 1c 3f 
-                    3f 3f ff 01 21 01 0d 81 ed 0e 13 3f 3f 3f bf 99 
-                    c1 81 85 fd 4d 30 2b 1c 3f 3f 81 80 80 80 88 ff 
-                    45 00 3f 3f 3f 3f ff 00 00 00 00 ff 4d 0d 0c 2d 
-                    3f 3f 81 09 19 01 03 ff 4d 00 1d 3f 3f 3f 81 81 
-                    81 8d 99 81 4d 09 ca ff 1c 3f 81 85 a1 81 89 81 
-                    40 02 db ff 1c 3f 81 81 81 e7 81 81 20 9e d1 e2 
-                    c6 e3 83 81 89 81 81 bf 80 0e d1 ff 06 3f 81 85 
-                    81 a1 89 83 54 0d 0c 3f 3f 3f 81 88 80 80 88 81 
-                    4c 00 3f 3f 3f 3f 81 00 10 04 20 81 4c 09 3f 3f 
-                    3f 3f 81 00 00 00 00 81 4c 0d 24 3f 3f 3f 81 09 
-                    01 21 01 81 5a 03 da ff 0d 3f 81 81 85 81 a1 81 
-                    4c 0d 1a 1d 3f 3f 81 90 80 a2 e0 ff 4c 00 3f 3f 
-                    3f 3f 81 09 41 11 05 81 55 02 db ff 1d 3f f9 81 
-                    83 eb 80 ff 55 0d 18 3f 3f 3f ff b8 10 00 00 ff 
-                    55 0e da ff 1d 3f ff 10 00 00 00 ff 55 0e 13 3f 
-                    3f 3f ff 04 00 08 00 ff 5d 0e 12 2d 3f 3f 81 01 
-                    01 01 03 ff 5d 0d e4 ff 22 3f 81 a9 81 83 81 81 
-                    50 02 d2 ff 15 3f 81 83 db da c0 ff 90 0e c1 ff 
-                    0e 3f bf 81 fd 01 01 ff 98 de ce dc 01 3f 83 91 
-                    81 89 e9 c1 4c 03 0c 3f 3f 3f 81 80 88 80 80 ff 
-                    4c 0d 14 2a 3f 3f 81 00 08 00 0c df 4c 00 3f 3f 
-                    3f 3f 81 00 00 00 00 ff 4c 00 2a 3f 3f 3f 81 01 
-                    01 01 0f df 4a 09 da ff 0c 3f 81 81 89 83 a1 81 
-                    5c 00 3f 3f 3f 3f ff 80 80 80 90 81 44 09 1c 3f 
-                    3f 3f 81 00 00 00 08 ff 45 00 3f 3f 3f 3f ff 00 
-                    00 00 00 81 45 0d 1c 3f 3f 3f ff 18 00 00 00 ff 
-                    5d dd d4 da 1e 3f ff 62 08 00 08 ff 45 3d 1a 1d 
-                    3f 3f ff 18 00 20 24 81 45 00 3f 3f 3f 3f ff 00 
-                    20 04 00 ff 4d 30 29 15 3f 3f 81 00 00 00 3e ff 
-                    45 0d 1a 3f 3f 3f ff 18 00 20 24 81 45 0e 11 2b 
-                    3f 3f ff 08 00 00 00 ff 98 0e d1 ff 06 3f c3 09 
-                    01 21 01 cf 4a 3d 1a 1d 3f 3f ff 80 80 a0 a4 81 
-                    4a 00 3f 3f 3f 3f ff 01 01 05 21 81 4a 00 3f 3f 
-                    3f 3f ff 80 80 80 80 81 4a 00 3f 3f 3f 3f ff 01 
-                    01 01 01 81 52 00 3f 3f 3f 3f 81 b1 81 8d 81 81 
-                    44 07 1a 3f 3f 3f 81 81 c1 81 b9 e1 54 0d da ff 
-                    1c 3f ff a9 81 83 81 81 4d 0d d2 ff 14 3f 81 81 
-                    a9 83 a9 81 45 00 3f 3f 3f 3f ff 80 92 80 a4 81 
-                    5d 00 1b 3f 3f 3f ff 05 01 31 01 81 83 3e 14 0c 
-                    3f 3f 81 80 80 80 80 81 53 e3 1b 23 3f 3f ff 01 
-                    01 01 01 81 44 0d e2 ff 24 3f ff a9 81 83 81 81 
-                    3d 2e ca d9 cd de 81 81 81 81 81 81 58 0d da ff 
-                    24 3f ff 83 83 83 83 c3 58 70 2a 1c 3f 3f cf 85 
-                    a5 85 9f ff da ff 4b 15 5a 24 81 99 87 b1 8d 81 
-                    5a 00 3f 3f 3f 3f 81 80 80 80 80 ff 5a 00 2d 3f 
-                    3f 3f 81 01 01 01 01 ff 5a 00 2b 3f 3f 3f 81 80 
-                    a4 80 80 ef 52 06 0c 3f 3f 3f 81 01 0d 21 01 ff 
-                    44 5d 12 1d 3f 3f e1 81 a0 80 a4 81 54 02 cb ff 
-                    0d 3f 81 eb 01 01 01 ff 5d 02 da ff 1d 3f 81 81 
-                    81 db 81 81 5d 6d 0a 0c 3f 3f 81 a1 8d 81 a1 83 
-                    5d 09 ca ff 1c 3f 81 83 b1 81 cd 81 8b de 04 1a 
-                    3f 3f 81 80 80 a0 fe ff 4b 0e 03 3f 3f 3f 81 01 
-                    01 05 01 ff 54 ff 13 15 22 24 81 c1 9f 81 bf 81 
-                    75 2e c2 de c5 d9 81 81 81 81 81 81 50 0d 0a 3f 
-                    3f 3f c3 a0 a0 80 84 81 42 d0 19 24 3f 3f ff 09 
-                    21 61 21 81 ca ff 4a 0d 5e 24 81 b6 80 83 8c 81 
-                    4a 30 29 13 3f 3f ff 01 01 01 3f ff 4a 6d 22 1c 
-                    3f 3f ff a1 81 83 8d 81 4a 29 da e1 dc ff ff 80 
-                    80 80 bf 81 4a 03 d9 ff 1b 3f ff 09 01 01 f1 81 
-                    5c 33 e2 cb 1d 3f 81 80 90 80 84 a1 4c 90 68 1a 
-                    ff db ff 49 01 03 71 ff 55 22 e1 e3 e4 e6 81 db 
-                    81 81 a5 81 55 0d 0a 3f 3f 3f 83 e0 c0 c4 e0 ff 
-                    4d d5 0b 0c 3f 3f 81 08 3c 00 00 ff 4c 00 1b 3f 
-                    3f 3f ff 42 00 08 00 81 54 03 d9 ff 1e 3f ff 24 
-                    00 00 42 ff 5c f0 7f 12 3f 15 81 01 37 01 01 ff 
-                    2d 2e c2 d9 c5 de 81 81 81 81 81 bd 40 40 2b 11 
-                    3f 3f 81 81 81 c3 ef ff 52 99 ca cb dc dd 81 83 
-                    b1 81 cd 81 ca 0f 4a 3f 55 1b 81 b0 86 98 80 ff 
-                    82 0e d3 ff 14 3f ff 00 00 00 00 81 5a 0d ca ff 
-                    0c 3f 81 29 29 01 01 ff 4a 03 0b 3f 3f 3f 81 81 
-                    91 81 81 81 4a 06 ca ff 1c 3f 81 83 b1 81 8d 81 
-                    54 00 3f 3f 3f 3f a1 88 a2 88 80 ff 4c 0d e2 ff 
-                    24 3f ff 29 01 03 01 81 5d 00 1b 3f 3f 3f 81 80 
-                    80 b8 80 81 55 dd da e4 1e 3f ff 3a 00 00 00 81 
-                    95 0e 14 3f 3f 3f ff 09 01 01 03 81 4c 99 ca cb 
-                    dc dd 81 83 b1 81 cd 81 95 0e 12 3f 3f 3f ff 80 
-                    80 80 8c 81 55 03 d9 ff 1e 3f ff 18 00 00 42 c3 
-                    5d 00 3f 3f 3f 3f bd 00 00 00 00 81 4d d0 1b 24 
-                    3f 3f ff 41 09 39 01 81 52 00 3f 3f 3f 3f 81 81 
-                    8f c0 8f 81 4a 0d 1c 3f 3f 3f ff 89 e1 03 e1 81 
-                    32 0e c3 ff 04 3f 91 81 81 c1 81 83 4a 9d 1c 1e 
-                    3f 3f ff 88 80 c0 83 ff 52 03 1d 3f 3f 3f 81 01 
-                    01 01 85 81 42 99 cc cd da db 81 c1 8d 81 b3 81 
-                    44 90 2e 1c ff db ff 98 80 c0 fc fd 4c 83 ff ff 
-                    d4 dc 81 01 01 01 29 81 5d 99 ca cb dc dd 81 80 
-                    b0 80 8c 81 55 00 3f 3f 3f 3f 81 08 40 11 04 81 
-                    95 0e 04 3f 3f 3f 89 01 01 83 21 81 4c 00 3f 3f 
-                    3f 3f 81 c1 99 83 99 c1 9d e2 c9 c2 d9 ff a1 80 
-                    80 80 8c 81 5d 03 db ff 1c 3f c3 42 42 42 5a c3 
-                    4d 00 3f 3f 3f 3f 81 00 00 00 00 81 4d 0d ca ff 
-                    0c 3f 81 29 01 01 29 81 4a 0d 1a 3f 3f 3f 81 99 
-                    81 a1 a5 81 4a 6d 1a 0c 3f 3f 81 80 8c a0 e0 ff 
-                    4a e0 e9 c3 ff c4 83 00 00 00 3c ff 4a 07 1c 3f 
-                    3f 3f ff 18 10 00 1f ff 52 03 ca ff 0d 3f 81 01 
-                    25 01 81 ff 52 05 db ff 0d 3f 81 81 85 81 91 81 
-                    54 33 d2 dc 16 3f ff 80 80 a2 88 81 5c 00 28 3f 
-                    3f 3f 81 11 01 01 4f ff 4d 90 2d 1b ff de 81 80 
-                    80 80 f3 ff 4d 00 3f 3f 3f 3f 81 00 18 00 81 ff 
-                    4d 0e 04 3f 3f 3f 89 03 01 01 f1 ff 54 6d 12 0c 
-                    3f 3f c1 81 ad 83 b1 81 2d 0e 02 1d 3f 3f 81 80 
-                    80 82 f0 81 5d 0d d9 ff 1e 3f c3 42 00 00 00 81 
-                    a5 00 7f 3f 1b 3f 81 00 00 14 00 81 45 30 1b 0c 
-                    3f 3f 81 01 09 39 01 81 4a 0d dd ff 0a 3f 81 a5 
-                    81 81 a1 81 57 0d 12 3f 3f 3f ff 81 a1 85 a1 81 
-                    47 06 5a 3f 22 3f ff 80 80 84 a8 81 5f 03 da ff 
-                    1d 3f ff 01 01 01 25 81 47 0d 24 3f 3f 3f ff 80 
-                    80 a0 80 81 cf 00 3f 3f 3f 3f 81 25 01 11 05 81 
-                    56 0d 1c 3f 3f 3f 81 80 c0 88 88 81 4e 3d 1c 1a 
-                    3f 3f ff 00 00 00 20 81 46 0d da ff 14 3f ff 00 
-                    00 22 20 ff 4e 9d 1a 1d 3f 3f ff 10 00 20 24 81 
-                    56 d0 2b 16 3f 3f ff 04 04 20 0e ff 5e 90 2d 0a 
-                    ff cd 81 01 25 01 01 ff 5d 6d 0a 0c 3f 3f 81 a0 
-                    ac a0 80 ff 5d 0d 1c 3f 3f 3f 81 18 00 40 00 ff 
-                    5d 90 2d 0a ff cd 81 00 24 00 00 ff 9d e3 0a 12 
-                    3f 3f 81 01 01 03 0f ff 5e f3 dd d2 8a 25 81 81 
-                    b1 81 87 81 4f df 52 0c 1e 3f 81 88 b0 83 88 81 
-                    47 d0 59 0c 1a 3f 81 09 09 31 01 ff 4e 00 23 3f 
-                    3f 3f 81 81 81 a1 ad 81 47 d3 0d 0a 3f 3f 81 a1 
-                    85 81 a1 81 47 99 e3 ca e5 cc 81 81 a9 81 81 ff 
-                    5e 50 2b 0a ff cd 81 80 a4 80 80 ff 9e e3 5a 0c 
-                    3f 3f 81 01 01 03 21 ff 5e 90 2f 1e ff e4 ff 88 
-                    88 c0 82 fe 46 00 3f 3f 3f 3f 81 15 41 09 23 81 
-                    5e 6d 1a 1c 3f 3f ff 84 80 80 8c 81 56 03 da ff 
-                    1d 3f ff 00 00 00 24 81 56 d0 2b 12 3f 3f ff 01 
-                    01 01 05 ff 46 00 3f 3f 3f 3f ff 80 84 80 a0 81 
-                    46 55 9a 1d a5 22 ff 42 02 00 36 81 56 0d e3 ff 
-                    14 3f ff 01 01 41 05 81 5e 3f 9a 12 dd d5 81 81 
-                    81 b7 81 81 7f 03 da ff 0d 3f 81 80 84 80 a0 81 
-                    90 30 28 21 3f 3f ff 01 01 01 01 ff 5f a9 e1 da 
-                    26 3f 81 81 81 81 81 ff b7 60 29 24 3f 3f 81 80 
-                    a4 80 80 ff 48 00 3f 3f 3f 3f ff 01 01 01 01 81 
-                    46 9d 9a 1d a2 25 ff 80 80 a0 b6 81 46 0a 12 3f 
-                    3f 3f ff 00 20 00 00 ff 5e 1e 13 1d 3f 3f ff 61 
-                    61 0b 4b fb 56 03 ca ff 0d 3f 81 80 bc 80 80 ff 
-                    4e 00 2d 3f 3f 3f 81 05 21 01 01 ff 46 3d 62 0d 
-                    3f 3f 81 80 e4 a0 80 81 4e 3d d3 d9 16 3f ff 14 
-                    04 00 44 ff 5e 00 bf 3f e3 13 81 00 04 10 14 81 
-                    56 99 ca d4 15 3f 81 01 21 0d 01 ff 46 99 d2 d3 
-                    d5 d4 81 80 80 bc 80 81 56 00 3f 3f 3f 3f 81 01 
-                    01 01 01 81 4f 9d 92 7f dc ff 81 80 a0 8a a0 81 
-                    5f 0d 1c 3f 3f 3f ff 01 01 21 01 81 57 90 2e 23 
-                    ff e4 ff 82 80 a2 80 fd c0 93 ff db e7 dc ff 00 
-                    00 00 18 81 88 93 60 23 ff e5 81 01 01 01 01 ff 
-                    46 33 4a 0d 52 15 81 80 b6 80 80 ff 56 35 e1 d9 
-                    e6 de ff 10 00 00 00 ff 5e 95 e1 d9 e6 de fb 42 
-                    00 00 00 ff 5e 0d 1e 3f 3f 3f ff 1a 08 08 08 ff 
-                    5e 6d d1 e4 16 3f ff 40 00 00 00 ff 56 99 e5 e4 
-                    e3 e2 81 19 01 01 01 ff 46 90 2e 23 ff e4 ff 82 
-                    82 a0 80 fd 56 65 27 23 ff 3f 81 01 01 01 01 ff 
-                    5e d0 2e 1d 3f 3f ff 80 80 c0 80 fd 4e 63 0d 24 
-                    3f 3f 81 01 25 21 21 ff 56 05 e0 ea 27 3f 81 81 
-                    81 81 00 df 50 f9 ca d2 8c 54 81 81 bd 81 81 ff 
-                    40 60 2c 22 3f 3f 81 80 80 80 80 f7 88 53 d9 e1 
-                    de e6 ff 00 00 00 00 ff 70 0a 12 3f 3f 3f 81 00 
-                    20 00 00 ff 58 d0 ff da e9 dc ff 01 01 01 01 ff 
+
+.ROOM_DATA  ; org $4180
+                    INCBIN "rooms.bin" ; 6KB of room data, 12 bytes per room
+                    
+
+
+
                     00 00 00 00 00 00 11 11 11 11 11 11 11 11 11 11 
                     10 01 11 11 11 11 11 11 11 11 11 11 11 11 11 11 
                     11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 
@@ -5881,7 +5557,7 @@ ROOMS_VISITED = $0380
                     00 00 22 55 88 00 00 00 00 00 22 55 88 00 00 00 
                     22 22 55 dd 99 00 00 00 22 22 55 55 44 88 88 00 
                     
-.S6440              ldx $9a
+.RAND               ldx $9a
                     ldy $9b
                     asl $9a
                     rol $9b
@@ -5899,7 +5575,7 @@ ROOMS_VISITED = $0380
                     adc $9d
                     sta $9b
                     and #$0f
-                    sta $9c
+                    sta $9c   ; <-- not used anywhere!
                     rts
                     
 .S6461              lda #$00
@@ -5981,9 +5657,9 @@ ROOMS_VISITED = $0380
                     asl a
                     asl a
                     sta $8a
-.L6508               ldy $8a
+.L6508              ldy $8a
                     dey
-.L650b               lda ($8c),y
+.L650b              lda ($8c),y
                     sta ($8e),y
                     dey
                     bpl L650b
@@ -5999,7 +5675,7 @@ ROOMS_VISITED = $0380
                     bne L6508
                     rts
                     
-.S6526               lda $8e
+.S6526              lda $8e
                     and #$07
                     sta $89
                     txa
@@ -6008,7 +5684,7 @@ ROOMS_VISITED = $0380
                     asl a
                     sta $8a
                     sty $8b
-.L6534               ldy #$00
+.L6534              ldy #$00
                     sec
                     lda $8e
                     and #$07
@@ -6016,7 +5692,7 @@ ROOMS_VISITED = $0380
                     lda #$08
                     sbc $88
                     sta $88
-.L6543               lda ($8e),y
+.L6543              lda ($8e),y
                     eor ($8c),y
                     sta ($8e),y
                     iny
@@ -6042,14 +5718,14 @@ ROOMS_VISITED = $0380
                     lda $89
                     beq L658f
                     ldy #$00
-.L6572               sec
+.L6572              sec
                     lda #$08
                     sbc $89
                     sta $88
                     tya
                     ora $88
                     tay
-.L657d               lda ($8e),y
+.L657d              lda ($8e),y
                     eor ($8c),y
                     sta ($8e),y
                     iny
@@ -6059,7 +5735,7 @@ ROOMS_VISITED = $0380
                     bne L657d
                     cpy $8a
                     bne L6572
-.L658f               clc
+.L658f              clc
                     lda $8e
                     adc #$08
                     sta $8e
@@ -6100,15 +5776,15 @@ ROOMS_VISITED = $0380
                     bne L65b5
                     rts
                     
-.S65d4               ldy #$0f
-.L65d6               lda ($8e),y
+.S65d4              ldy #$0f
+.L65d6              lda ($8e),y
                     eor ($8c),y
                     sta ($8e),y
                     dey
                     bpl L65d6
                     rts
                     
-.S65e0               stx $6b
+.S65e0              stx $6b
                     sty $6c
                     lsr $6c
                     ror $6b
