@@ -17,16 +17,16 @@ MAPCHAR '/', $6C
 osword = $fff1
 
 ; Zero-page
-COMPLETION_FRACTION = $0b
-COMPLETION_PERCENT = $0c
-SCORE0 = $46
-SCORE1 = $47
-SCORE2 = $48
-LIVES = $49
-GRAVITY_INDEX = $73
-ROOM_LO = $7e
-ROOM_HI = $7f
-CORE_ITEMS_FOUND = $9f
+zCOMPLETION_FRACTION = $0b
+zCOMPLETION_PERCENT = $0c
+zSCORE0 = $46
+zSCORE1 = $47
+zSCORE2 = $48
+zLIVES = $49
+zGRAVITY_INDEX = $73
+zROOM_LO = $7e
+zROOM_HI = $7f
+zCORE_ITEMS_FOUND = $9f
 
 ROOMS_VISITED = $0380
 
@@ -66,6 +66,8 @@ ROOMS_VISITED = $0380
                     cpx #$05
                     bne L0e2f
                     jsr L0e00
+
+                    ; ($8c) = $6124 = Teleport graphic
                     lda #$24
                     sta $8c
                     lda #$61
@@ -76,7 +78,7 @@ ROOMS_VISITED = $0380
                     sta $8f
                     ldx #$04
                     ldy #$03
-                    jsr DRAW_SPRITE
+                    jsr DRAW_OBJECT
                     ldx #$26
                     ldy #$0f
                     jsr DRAW_TEXT
@@ -169,10 +171,10 @@ ROOMS_VISITED = $0380
                     lda #$0b
                     sta $72
                     lda $6223,y
-                    sta ROOM_LO
+                    sta zROOM_LO
                     lda $6224,y
                     and #$01
-                    sta ROOM_HI
+                    sta zROOM_HI
 .S0f11              jsr CLEAR_SCREEN
                     jmp FLUSH_BUFFERS
                     
@@ -343,13 +345,13 @@ ROOMS_VISITED = $0380
 
                     ; Reset score to zero
                     lda #$00
-                    sta SCORE0
-                    sta SCORE1
-                    sta SCORE2
+                    sta zSCORE0
+                    sta zSCORE1
+                    sta zSCORE2
 
                     ; Start with 5 lives
                     lda #$05
-                    sta LIVES
+                    sta zLIVES
 
                     ; Clear two entire pages of RAM... no idea what for
                     ldy #$00
@@ -373,8 +375,8 @@ ROOMS_VISITED = $0380
 
                     ; Reset completion %age
                     lda #$00
-                    sta COMPLETION_FRACTION
-                    sta COMPLETION_PERCENT
+                    sta zCOMPLETION_FRACTION
+                    sta zCOMPLETION_PERCENT
 
                     ; Set ($88) to $0c00
                     sta $88
@@ -473,7 +475,7 @@ ROOMS_VISITED = $0380
                     lda #$00
                     sta $72
                     sta $22
-                    sta CORE_ITEMS_FOUND
+                    sta zCORE_ITEMS_FOUND
                     lda #$01
                     sta $76
                     sta $7a
@@ -591,9 +593,9 @@ ROOMS_VISITED = $0380
 
                     ; Starting room is at 8,0 on the map, i.e. index 8
                     lda #$08
-                    sta ROOM_LO
+                    sta zROOM_LO
                     lda #$00
-                    sta ROOM_HI
+                    sta zROOM_HI
 
                     sei
                     sta $23
@@ -624,9 +626,9 @@ ROOMS_VISITED = $0380
                     sta $76
                     sed
                     sec
-                    lda LIVES
+                    lda zLIVES
                     sbc #$01
-                    sta LIVES
+                    sta zLIVES
                     cld
                     bcs L130b
                     rts
@@ -658,9 +660,9 @@ ROOMS_VISITED = $0380
                     jsr S20a0
 
                     ; Calculate byte index into ROOMS_VISITED by dividing the 9-bit room index by 8.
-                    lda ROOM_HI
+                    lda zROOM_HI
                     lsr a 
-                    lda ROOM_LO
+                    lda zROOM_LO
                     ror a
                     lsr a
                     lsr a
@@ -669,7 +671,7 @@ ROOMS_VISITED = $0380
                     ; Calculate the bit we are interested within the ROOMS_VISITED byte
                     lda #$00
                     sta $8f
-                    lda ROOM_LO
+                    lda zROOM_LO
                     and #$07
                     tax
                     sec
@@ -694,17 +696,17 @@ ROOMS_VISITED = $0380
 
                     ; Adventure complete += ((100/512)*255) = 49.8 ~= 50
                     clc
-                    lda COMPLETION_FRACTION
+                    lda zCOMPLETION_FRACTION
                     adc #$32
-                    sta COMPLETION_FRACTION
-                    lda COMPLETION_PERCENT
+                    sta zCOMPLETION_FRACTION
+                    lda zCOMPLETION_PERCENT
                     sed
                     adc #$00
                     cld
-                    sta COMPLETION_PERCENT
+                    sta zCOMPLETION_PERCENT
 
-.L137d              ldx ROOM_LO
-                    ldy ROOM_HI
+.L137d              ldx zROOM_LO
+                    ldy zROOM_HI
                     jsr S25f0
                     jsr S2571
                     ldx $70
@@ -713,7 +715,7 @@ ROOMS_VISITED = $0380
                     stx $74
                     sty $75
                     lda #$00
-                    sta GRAVITY_INDEX
+                    sta zGRAVITY_INDEX
                     pla
                     sta $80
                     jsr S23d4
@@ -722,7 +724,7 @@ ROOMS_VISITED = $0380
                     lda $2f
                     sta $2d
                     lda $26
-                    cmp ROOM_LO
+                    cmp zROOM_LO
                     bne L13bb
                     lda $27
                     cmp $7f
@@ -754,7 +756,7 @@ ROOMS_VISITED = $0380
                     bmi L1430
                     ldy $8e
                     lda $6185,y
-                    cmp ROOM_LO
+                    cmp zROOM_LO
                     bne L13dd
                     lda $6186,y
                     pha
@@ -797,13 +799,13 @@ ROOMS_VISITED = $0380
                     iny
                     cpy #$08
                     bne L143c
-                    lda ROOM_LO
+                    lda zROOM_LO
                     sta $28
-                    lda ROOM_HI
+                    lda zROOM_HI
                     sta $29
-                    lda ROOM_HI ; unnecessary!
+                    lda zROOM_HI ; unnecessary!
                     bne L1461
-                    lda ROOM_LO
+                    lda zROOM_LO
                     cmp #$c7
                     beq L1464
                     cmp #$c6
@@ -834,7 +836,7 @@ ROOMS_VISITED = $0380
                     bne L1473
                     jsr S3563
                     lda #$00
-                    ldx #GRAVITY_INDEX
+                    ldx #zGRAVITY_INDEX
                     jsr S3587
                     jsr $7f00
                     lda #$00
@@ -870,7 +872,7 @@ ROOMS_VISITED = $0380
                     ldy #$60
                     jsr S353d
                     lda #$00
-                    ldx #GRAVITY_INDEX
+                    ldx #zGRAVITY_INDEX
                     jsr S3593
                     jsr S23d4
                     lda #$07
@@ -884,8 +886,8 @@ ROOMS_VISITED = $0380
                     sta $0017,y
                     lda #$ff
                     sta $0bf7,y
-                    inc CORE_ITEMS_FOUND
-                    lda CORE_ITEMS_FOUND
+                    inc zCORE_ITEMS_FOUND
+                    lda zCORE_ITEMS_FOUND
                     cmp #$09
                     bcc L1506
                     rts
@@ -923,11 +925,11 @@ ROOMS_VISITED = $0380
                     sta $0189,y
                     dec $8e
                     bne L151d
-                    lda CORE_ITEMS_FOUND
+                    lda zCORE_ITEMS_FOUND
                     sta $70
                     sec
                     lda #$08
-                    sbc CORE_ITEMS_FOUND
+                    sbc zCORE_ITEMS_FOUND
                     lsr a
                     sta $8e
 .L1557              dec $8e
@@ -975,7 +977,7 @@ ROOMS_VISITED = $0380
                     bne L158f
                     jsr $7f00
                     lda #$00
-                    ldx #GRAVITY_INDEX
+                    ldx #zGRAVITY_INDEX
                     jsr S3593
                     lda #$08
                     sta $8e
@@ -998,9 +1000,9 @@ ROOMS_VISITED = $0380
                     jmp L1581
                     
                     ; Clearly this is moving one room left.
-.L15df              dec ROOM_LO
+.L15df              dec zROOM_LO
                     lda #$03
-                    sta GRAVITY_INDEX
+                    sta zGRAVITY_INDEX
                     lda #$e8  ; might be moving Blob position to far right of screen
                     sta $70
                     jmp L1321
@@ -1182,7 +1184,7 @@ ROOMS_VISITED = $0380
                     dec $2e
 .L174c               lda $76
                     beq L176d
-                    lda GRAVITY_INDEX
+                    lda zGRAVITY_INDEX
                     beq L1762
                     cmp #$01
                     bne L176d
@@ -1395,7 +1397,7 @@ ROOMS_VISITED = $0380
                     bne L18c9
                     ldx $70
                     ldy $71
-                    lda GRAVITY_INDEX
+                    lda zGRAVITY_INDEX
                     beq L18f4
                     iny
                     iny
@@ -1413,19 +1415,19 @@ ROOMS_VISITED = $0380
                     bne L1916
                     dey
                     bpl L1901
-                    lda GRAVITY_INDEX
+                    lda zGRAVITY_INDEX
                     beq L1926
                     lda $71
                     cmp #$7c
                     bcc L1926
                     bcs L191a
-.L1916               lda GRAVITY_INDEX
+.L1916               lda zGRAVITY_INDEX
                     beq L18c9
 .L191a               lda $70
                     and #$f8
                     sta $70
                     lda #$00
-                    sta GRAVITY_INDEX
+                    sta zGRAVITY_INDEX
                     inc $71
 .L1926               ldy #$00
                     jsr S20c2
@@ -1433,7 +1435,7 @@ ROOMS_VISITED = $0380
                     lda $70
                     and #$f8
                     sta $8e
-                    lda GRAVITY_INDEX
+                    lda zGRAVITY_INDEX
                     bne L1946
                     dec $71
                     sec
@@ -1455,7 +1457,7 @@ ROOMS_VISITED = $0380
                     adc #$02
                     sty $6d
                     tay
-                    lda GRAVITY_INDEX
+                    lda zGRAVITY_INDEX
                     beq L1960
                     iny
 .L1960               ldx $8e
@@ -1551,13 +1553,13 @@ ROOMS_VISITED = $0380
                     beq L1a19
                     jmp L1ab0
                     
-.L1a19              ldy GRAVITY_INDEX
+.L1a19              ldy zGRAVITY_INDEX
                     lda GRAVITY,y
                     jsr S2061
-                    lda GRAVITY_INDEX
+                    lda zGRAVITY_INDEX
                     cmp #$10
                     bcs L1a29
-                    inc GRAVITY_INDEX
+                    inc zGRAVITY_INDEX
 .L1a29               jsr S204e
                     bpl L1a31
 .L1a2e               jmp L1ab4
@@ -1569,7 +1571,7 @@ ROOMS_VISITED = $0380
                     and #$01
                     eor #$01
                     bne L1aaa
-                    lda GRAVITY_INDEX
+                    lda zGRAVITY_INDEX
                     cmp #$10
                     bmi L1aaa
                     lda $74
@@ -1602,7 +1604,7 @@ ROOMS_VISITED = $0380
                     sta $8d
                     ldx #$04
                     ldy #$01
-                    jsr DRAW_SPRITE
+                    jsr DRAW_OBJECT
                     ldy #$00
                     jsr S20c2
                     lda $89
@@ -1625,7 +1627,7 @@ ROOMS_VISITED = $0380
                     and #$f8
                     sta $70
 .L1ab0               lda #$00
-                    sta GRAVITY_INDEX
+                    sta zGRAVITY_INDEX
 .L1ab4               lda #$00
                     sta $77
                     lda $72
@@ -1733,11 +1735,11 @@ ROOMS_VISITED = $0380
                     and #$f8
                     sta $70
                     clc
-                    lda ROOM_LO
+                    lda zROOM_LO
                     adc #$10
-                    sta ROOM_LO
+                    sta zROOM_LO
                     bcc L1b92
-                    inc ROOM_HI
+                    inc zROOM_HI
 .L1b92              jmp L1321
                     
 .L1b95              lda $71
@@ -1752,11 +1754,11 @@ ROOMS_VISITED = $0380
                     lda #$07
                     sta $75
                     sec
-                    lda ROOM_LO
+                    lda zROOM_LO
                     sbc #$10
-                    sta ROOM_LO
+                    sta zROOM_LO
                     bcs L1bb6
-                    dec ROOM_HI
+                    dec zROOM_HI
 .L1bb6              jmp L1321
                     
 .L1bb9               lda $72
@@ -1774,9 +1776,9 @@ ROOMS_VISITED = $0380
                     and #$f8
                     ora #$01
                     sta $72
-                    inc ROOM_LO
+                    inc zROOM_LO
                     bne L1bdd
-                    inc ROOM_HI
+                    inc zROOM_HI
 .L1bdd              jmp L1321
                     
 .L1be0              lda $72
@@ -1794,11 +1796,11 @@ ROOMS_VISITED = $0380
                     ora #$02
                     sta $72
                     sec
-                    lda ROOM_LO
+                    lda zROOM_LO
                     sbc #$01
-                    sta ROOM_LO
+                    sta zROOM_LO
                     bcs L1c07
-                    dec ROOM_HI
+                    dec zROOM_HI
 .L1c07              jmp L1321
                     
 .L1c0a               jsr S20d9
@@ -1857,9 +1859,9 @@ ROOMS_VISITED = $0380
                     
 .L1c75               clc
                     sed
-                    lda LIVES
+                    lda zLIVES
                     adc #$01
-                    sta LIVES
+                    sta zLIVES
                     cld
                     bne L1cce
 .L1c80               tax
@@ -1884,7 +1886,7 @@ ROOMS_VISITED = $0380
                     sta $8e
                     ldy #$00
                     ldx #$00
-                    lda LIVES
+                    lda zLIVES
                     beq L1c75
 .L1caf               lda $3b,x
                     cmp $003b,y
@@ -1954,7 +1956,7 @@ ROOMS_VISITED = $0380
                     lda $4f
                     sta $71
                     lda $4b
-                    sta ROOM_LO
+                    sta zROOM_LO
                     lda $72
                     and #$fc
                     ora $4a
@@ -2017,11 +2019,11 @@ ROOMS_VISITED = $0380
                     sta $8d
 .L1db4               ldx $8d
                     lda $0528,x
-                    cmp ROOM_LO
+                    cmp zROOM_LO
                     bne L1e0b
                     lda $0529,x
                     and #$03
-                    cmp ROOM_HI
+                    cmp zROOM_HI
                     bne L1e0b
                     lda $0529,x
                     and #$f8
@@ -2073,7 +2075,7 @@ ROOMS_VISITED = $0380
                     lda $0529,y
                     and #$02
                     beq L1e20
-                    lda ROOM_LO
+                    lda zROOM_LO
                     sta $0528,y
                     lda $70
                     and #$f8
@@ -2110,9 +2112,9 @@ ROOMS_VISITED = $0380
                     ldx #$03
                     cmp $ae
                     bne L1ed1
-                    lda ROOM_HI
+                    lda zROOM_HI
                     beq L1e85
-                    lda ROOM_LO
+                    lda zROOM_LO
                     cmp #$6a
                     beq L1ed1
 .L1e85              sty $86
@@ -2221,25 +2223,27 @@ ROOMS_VISITED = $0380
                     beq L1f55
                     cmp #$03
                     bne L1f6c
-.L1f55               lda $70
+.L1f55              lda $70
                     sta $8e
                     lda $71
                     sta $8f
-                    lda #$00
+
+                    ; Draw dervish ?
+                    lda LO(DERVISH)
                     sta $8c
-                    lda #$3c
+                    lda HI(DERVISH)
                     sta $8d
                     ldx #$03
                     ldy #$02
-                    jsr S6526
-.L1f6c               lda $70
+                    jsr DRAW_SPRITE
+.L1f6c              lda $70
                     and #$f8
                     sta $2340
                     lda $71
                     sta $2341
                     lda #$00
                     sta $8e
-.L1f7c               jsr RAND
+.L1f7c              jsr RAND
                     and #$03
                     tay
                     lda $234c,y
@@ -2443,6 +2447,8 @@ ROOMS_VISITED = $0380
                     jsr S6300
                     lda $76
                     bne L20d0
+
+                    ; Draw the hoverpad
                     lda $70
                     and #$07
                     ora $98
@@ -2468,14 +2474,14 @@ ROOMS_VISITED = $0380
                     asl $8c
                     rol $8d
                     lda $8c
-                    adc #$20
+                    adc LO(HOVERPAD)
                     sta $8c
                     lda $8d
-                    adc #$41
+                    adc HI(HOVERPAD)
                     sta $8d
                     ldx #$03
                     ldy #$01
-                    jmp S6526
+                    jmp DRAW_SPRITE
                     
 .S2149               lda #$00
                     sta $87
@@ -2715,11 +2721,11 @@ ROOMS_VISITED = $0380
 
 .S2366              ldy #$00
 .L2368              lda $61c3,y
-                    cmp ROOM_LO
+                    cmp zROOM_LO
                     bne L23cd
                     lda $61c4,y
                     and #$03
-                    cmp ROOM_HI
+                    cmp zROOM_HI
                     bne L23cd
                     tya
                     pha
@@ -2781,10 +2787,10 @@ ROOMS_VISITED = $0380
 .L23d8               dex
                     bmi L2435
                     lda $30,x
-                    cmp SCORE0,x
+                    cmp zSCORE0,x
                     beq L23d8
                     ldx #$00
-.L23e3              lda SCORE0,x
+.L23e3              lda zSCORE0,x
                     lsr a
                     lsr a
                     lsr a
@@ -2793,7 +2799,7 @@ ROOMS_VISITED = $0380
                     adc #$61
                     sta $24e7,y
                     iny
-                    lda SCORE0,x
+                    lda zSCORE0,x
                     and #$0f
                     adc #$61
                     sta $24e7,y
@@ -2825,7 +2831,7 @@ ROOMS_VISITED = $0380
 
                     ; Copy score somewhere for some reason
                     ldx #$03
-.L242e              lda SCORE0,x
+.L242e              lda zSCORE0,x
                     sta $30,x
                     dex
                     bpl L242e
@@ -3537,65 +3543,80 @@ ROOMS_VISITED = $0380
                     beq L29c0
                     lda #$87
                     sta $0423
-.L29c0               lda $85
+.L29c0              lda $85
                     bne L29cf
                     lda $84
                     cmp #$ec
                     bne L29cf
                     lda #$94
                     sta $0425
-.L29cf               lda #$a0
+.L29cf              lda #$a0
                     sta $80
                     lda #$05
                     sta $81
+
+                    ; Set ($82) to $6d00, i.e. start of game screen area
                     lda #$00
                     sta $82
                     sta $65
                     sta $86
                     lda #$6d
                     sta $83
-.L29e3               ldy $86
+
+.L29e3              ldy $86
+
+                    ; $8c = index of 'object', 0 to 63.
                     lda $0400,y
                     and #$3f
                     sta $8c
+
+                    ; $8b = the pixel colour mask, the index for which is in the top 2 bits
                     lda $0400,y
                     and #$c0
                     asl a
                     rol a
                     rol a
                     tax
-                    lda $2da7,x
+                    lda COLOUR_MASKS,x
                     sta $8b
+
+                    ; ($8c) = object index * 48
                     lda #$00
                     sta $8d
                     lda $8c
-                    asl a
-                    adc $8c
+                    asl a     ; *2
+                    adc $8c   ; *3  
                     sta $8c
-                    asl $8c
+                    asl $8c   ; *6
                     rol $8d
-                    asl $8c
+                    asl $8c   ; *12
                     rol $8d
-                    asl $8c
+                    asl $8c   ; *24
                     rol $8d
-                    asl $8c
+                    asl $8c   ; *48
                     rol $8d
 
-                    ; Get object sprite address. We subtract 48 (the size of an object sprite) cos 
+                    ; Get object sprite address. Subtract 48 (the size of an object sprite) cos 
                     ; there is no sprite for index 0 - empty space.
                     lda $8c
-                    adc LO(OBJECTSPRITES-48)
+                    adc LO(OBJECT_SPRITES-48)
                     sta $8c
                     lda $8d
                     adc HI(OBJECT_SPRITES-48)
                     sta $8d
-                    
+
+                    ; Copy screen address to ($8e)
                     lda $82
                     sta $8e
                     lda $83
                     sta $8f
+
+                    ; X still holds the colour mask index. If it's zero then the object is in 2-bit
+                    ; colour already and doesn't need unpacking.
                     cpx #$00
-                    bne L2a44
+                    bne draw_mono_obj
+
+                    ; If the object index is zero then set the source address to $6c80 ... why???
                     lda $0400,y
                     bne L2a3a
                     lda #$80
@@ -3603,21 +3624,25 @@ ROOMS_VISITED = $0380
                     lda #$6c
                     sta $8d
 
-                    ; Draw rock?
+                    ; Prepare for 2bpp draw
 .L2a3a              ldx #$04
                     ldy #$03
-                    jsr DRAW_SPRITE
+                    jsr DRAW_OBJECT
                     jmp L2a88
                     
-.L2a44               lda $8d
-                    sta L2a58 + 2
-                    sta $2a6c
+                    ; Copy source address in $8c into LDA instructions in the draw loop
+.draw_mono_obj      lda $8d
+                    sta draw_mono_nib1 + 2
+                    sta draw_mono_nib2 + 2
                     lda $8c
-                    sta L2a58 + 1
-                    sta $2a6b
+                    sta draw_mono_nib1 + 1
+                    sta draw_mono_nib2 + 1
+
                     ldx #$00
-.L2a56               ldy #$00
-.L2a58               lda $7000,x
+.L2a56              ldy #$00
+
+                    ; Unpack the first mono nibble into a 2bpp byte (4 screen pixels)
+.draw_mono_nib1     lda $7000,x
                     and #$0f
                     sta $8d
                     asl a
@@ -3625,10 +3650,12 @@ ROOMS_VISITED = $0380
                     asl a
                     asl a
                     adc $8d
-                    and $8b
+                    and $8b         ; apply colour mask
                     sta ($8e),y
                     iny
-                    lda $7000,x
+
+                    ; Unpack and draw the second mono nibble
+.draw_mono_nib2     lda $7000,x
                     and #$f0
                     sta $8d
                     lsr a
@@ -3636,17 +3663,19 @@ ROOMS_VISITED = $0380
                     lsr a
                     lsr a
                     adc $8d
-                    and $8b
+                    and $8b         ; apply colour mask
                     sta ($8e),y
                     iny
                     inx
                     txa
                     and #$0f
-                    bne L2a58
+                    bne draw_mono_nib1
+
+                    ; Add #$100 to the screen address in ($8e), i.e. move down a character row
                     inc $8f
                     cpx #$30
                     bmi L2a56
-.L2a88               ldy $86
+.L2a88              ldy $86
                     lda $0400,y
                     and #$3f
                     cmp #$09
@@ -3655,7 +3684,7 @@ ROOMS_VISITED = $0380
                     beq L2a9b
                     cmp #$24
                     bne L2ab0
-.L2a9b               and #$01
+.L2a9b              and #$01
                     eor #$01
                     asl a
                     tay
@@ -3683,7 +3712,7 @@ ROOMS_VISITED = $0380
                     ldy #$eb
                     lda ($8e),y
                     beq L2b28
-.L2ace              lda ROOM_LO
+.L2ace              lda zROOM_LO
                     sec
 .L2ad1              sbc #$03
                     cmp #$03
@@ -3748,7 +3777,7 @@ ROOMS_VISITED = $0380
                     sta $8d
                     ldx #$02
                     ldy #$01
-                    jsr DRAW_SPRITE
+                    jsr DRAW_OBJECT
 .L2b46               jsr S2582
                     inc $86
                     clc
@@ -3778,7 +3807,7 @@ ROOMS_VISITED = $0380
                     bne L2b5f
                     lda #$26
                     sta $86
-.L2b7c               ldx $86
+.L2b7c              ldx $86
                     lda $63d8,x
                     cmp $84
                     bne L2bfd
@@ -3804,7 +3833,7 @@ ROOMS_VISITED = $0380
                     sta $8c
                     ldx #$03
                     ldy #$02
-                    jsr DRAW_SPRITE
+                    jsr DRAW_OBJECT
                     ldx $4c
                     ldy $4d
                     jsr S65e0
@@ -3857,9 +3886,9 @@ ROOMS_VISITED = $0380
                     lda #$0c
                     sta $8b
                     ldx #$02
-                    lda ROOM_LO
+                    lda zROOM_LO
                     bne L2c1c
-                    lda ROOM_HI
+                    lda zROOM_HI
                     beq L2c3a
 .L2c1c               ldy $8d
                     lda ($8a),y
@@ -3937,11 +3966,11 @@ ROOMS_VISITED = $0380
                     sta $88
 .L2ca0               ldy $88
                     lda $0528,y
-                    cmp ROOM_LO
+                    cmp zROOM_LO
                     bne L2cc8
                     lda $0529,y
                     and #$03
-                    cmp ROOM_HI
+                    cmp zROOM_HI
                     bne L2cc8
                     lda $0529,y
                     and #$f8
@@ -3958,8 +3987,10 @@ ROOMS_VISITED = $0380
                     sta $88
                     cmp #$50
                     bne L2ca0
+
+                    ; Clear the current room objects buffer
                     ldy #$3f
-.L2cd5               lda #$00
+.L2cd5              lda #$00
                     sta $0400,y
                     dey
                     bpl L2cd5
@@ -4062,7 +4093,13 @@ ROOMS_VISITED = $0380
                     
                     EQUB $d8, $82, $81, $00, $00, $84, $1d 
                     EQUB $41, $42, $43, $44, $45, $46, $1d, $88, $c9, $ca, $cb, $cc, $cd, $e1, $ce, $46 
-                    EQUB $d0, $d1, $00, $00, $00, $1d, $93, $00, $0f, $f0, $ff, $00, $00, $00, $00, $00 
+                    EQUB $d0, $d1, $00, $00, $00, $1d, $93
+
+.COLOUR_MASKS
+                    EQUB $00, $0f, $f0, $ff
+
+                    EQUB $00, $00, $00, $00, $00
+.L2db0
                     EQUB $00, $01, $03, $06, $05, $00, $18, $40, $16, $19, $1e, $14, $10 
 
 .S2dbd              lda #$0f
@@ -4576,7 +4613,7 @@ ROOMS_VISITED = $0380
                     sta $8d
                     ldx #$03
                     ldy #$02
-                    jmp S6526
+                    jmp DRAW_SPRITE
                     
 .L31ee              php
                     jsr FLUSH_BUFFERS
@@ -4618,27 +4655,27 @@ ROOMS_VISITED = $0380
                     jsr PLAY_TUNE
 
                     ; Write the number of core items found into the GAME OVER text
-.L3245              lda CORE_ITEMS_FOUND
+.L3245              lda zCORE_ITEMS_FOUND
                     clc
                     adc #$61
                     sta core_digits+1
 
                     ; Write the completion %age into the GAME OVER text
-                    lda COMPLETION_PERCENT
+                    lda zCOMPLETION_PERCENT
                     jsr GET_DIGIT_CODES
                     stx completed_digits+1
                     sty completed_digits
 
                     ; Write the 5-digit score into the GAME OVER text
-                    lda SCORE0
+                    lda zSCORE0
                     jsr GET_DIGIT_CODES
                     sty score_digits
                     stx score_digits+1
-                    lda SCORE1
+                    lda zSCORE1
                     jsr GET_DIGIT_CODES
                     sty score_digits+2
                     stx score_digits+3
-                    lda SCORE2
+                    lda zSCORE2
                     jsr GET_DIGIT_CODES
                     sty score_digits+4
 
@@ -4975,14 +5012,14 @@ ROOMS_VISITED = $0380
 .SCORE_ADD          clc
                     sed
                     txa
-                    adc SCORE2
-                    sta SCORE2
+                    adc zSCORE2
+                    sta zSCORE2
                     tya
-                    adc SCORE1
-                    sta SCORE1
-                    lda SCORE0
+                    adc zSCORE1
+                    sta zSCORE1
+                    lda zSCORE0
                     adc #$00
-                    sta SCORE0
+                    sta zSCORE0
                     cld
                     rts
                     
@@ -5078,7 +5115,7 @@ ROOMS_VISITED = $0380
                     00 01 01 21 80 cc 0c 2c 23 22 03 03 ee ee 0e 0e 
                     40 77 14 11 f0 66 0f 88 31 33 33 03 c8 40 04 0c 
 
-.room_related_data 37C0 
+.room_related_data ; $37C0 
                     19 a5 12 5a 5e e3 e4 dc 23 e2 53 1e e3 1e 4c 0b 
                     66 a3 59 52 62 54 c9 1e 64 e4 0e 62 64 19 56 60 
                     23 9a 1e 09 13 e2 1e c9 13 19 e4 e2 e4 14 e1 16 
@@ -5113,114 +5150,48 @@ ROOMS_VISITED = $0380
                     21 3f 27 a5 60 43 3f a4 21 26 26 e3 66 3f ca e1 
 .end-of-room_related_data
 
-                    00 41 00 08 00 00 00 cc 80 00 60 00 34 40 33 33 
-                    00 00 00 00 00 00 00 00 cc cc 20 c2 00 60 00 10 
-                    33 00 00 00 01 00 28 00 00 00 00 00 00 00 00 00 
-                    00 00 00 66 66 66 00 00 80 02 00 30 00 10 02 10 
-                    00 00 00 00 00 08 00 80 60 01 24 00 30 00 01 00 
-                    00 00 11 11 11 00 00 40 00 00 88 88 88 00 00 00 
-                    00 00 20 20 10 02 30 00 cc cc cd 00 08 00 00 00 
-                    00 00 00 00 80 00 08 40 20 01 00 10 00 00 00 00 
-                    00 00 00 01 00 3b 33 33 00 c0 04 80 40 40 00 00 
-                    00 00 00 10 00 00 00 01 14 a0 a0 20 00 80 00 00 
-                    00 00 cc cc cc 00 00 00 00 00 00 00 00 00 00 00 
-                    00 00 00 cc dc dc 10 20 02 00 40 00 20 40 40 08 
-                    08 0c 06 02 01 01 20 60 01 03 06 04 08 08 40 60 
-                    00 00 00 00 00 00 00 00 70 d0 22 54 66 90 f0 50 
-                    e0 b0 54 a2 66 90 f0 a0 00 00 00 00 00 00 00 00 
-                    00 00 06 07 00 00 10 30 00 00 01 03 0c 0c 20 30 
-                    00 00 08 08 00 00 00 00 30 60 51 22 33 60 70 10 
-                    f0 d0 22 d1 33 d0 f0 60 00 80 80 00 00 80 80 00 
-                    00 00 00 01 03 02 00 10 00 00 00 09 06 06 90 90 
-                    00 00 00 08 0c 04 00 80 10 30 20 11 11 20 30 10 
-                    f0 60 99 60 99 60 f0 80 80 c0 40 88 88 40 c0 80 
-                    00 00 01 01 00 00 00 00 00 00 08 0c 03 03 40 c0 
-                    00 00 06 0e 00 00 80 c0 00 10 10 00 00 10 10 00 
-                    f0 b0 44 b8 cc 30 f0 60 c0 60 a8 44 cc 20 e0 80 
-                    02 15 15 15 0a 0f 0e 04 aa 55 55 f5 a0 00 00 01 
-                    00 00 00 00 00 00 00 00 0c 0c 06 0e 0b 07 05 03 
-                    01 02 03 07 0f 0e 0a 0c 00 00 00 00 00 00 00 00 
-                    01 02 02 02 05 07 07 02 55 aa aa fa 50 08 00 00 
-                    00 88 88 88 00 00 00 08 06 06 03 07 05 03 02 01 
-                    00 01 01 03 0f 0f 0d 0e 08 00 08 08 08 00 00 00 
-                    00 01 01 01 02 03 03 01 2a 55 55 75 28 0c 08 00 
-                    88 44 44 c4 80 00 00 08 03 03 01 03 02 01 01 00 
-                    00 00 08 09 0f 0f 06 0f 08 0c 0c 08 0c 08 08 00 
-                    00 00 00 00 01 01 01 00 15 2a 2a 3a 14 0e 0c 08 
-                    44 aa aa ea 40 00 00 04 01 01 00 01 01 00 00 00 
-                    08 08 0c 0c 07 0f 0b 07 04 06 06 0c 0e 0c 04 08 
-                    11 22 22 00 bb bb bb 00 88 cc cc 00 bb bb bb 00 
-                    00 00 00 00 00 00 00 00 22 22 22 22 00 55 00 11 
-                    cc cc cc cc 00 ee 00 88 00 00 00 00 00 00 00 00 
-                    00 11 11 00 33 33 33 00 cc 66 66 00 bb bb bb 00 
-                    00 00 00 00 88 88 88 00 11 11 11 11 00 33 00 00 
-                    66 66 66 66 00 dd 00 cc 00 00 00 00 00 00 00 00 
-                    00 00 00 00 33 33 33 00 66 bb bb 00 bb bb bb 00 
-                    00 00 00 00 88 88 88 00 00 00 00 00 00 11 00 00 
-                    bb bb bb bb 00 dd 00 66 00 00 00 00 00 88 00 00 
-                    00 00 00 00 11 11 11 00 33 55 55 00 bb bb bb 00 
-                    00 88 88 00 aa aa aa 00 00 00 00 00 00 00 00 00 
-                    55 55 55 55 00 dd 00 33 88 88 88 88 00 cc 00 00 
-                    22 77 22 88 00 22 88 00 00 44 11 00 22 77 22 00 
-                    00 00 00 00 00 00 00 00 00 44 00 00 99 00 44 00 
-                    88 00 22 88 cc 99 22 00 00 00 00 00 00 00 00 00 
-                    00 00 11 00 44 11 44 00 22 88 cc 88 11 33 11 88 
-                    00 00 00 00 00 88 00 00 00 22 11 33 11 44 22 00 
-                    00 22 00 88 11 00 00 88 00 00 00 88 00 00 88 00 
-                    00 00 00 11 00 22 00 00 99 00 88 cc 99 00 00 11 
-                    00 00 88 00 00 00 88 cc 00 11 00 00 11 00 00 22 
-                    44 00 22 00 00 44 ee 44 88 00 00 00 00 88 00 44 
-                    00 00 11 00 00 00 00 00 22 00 11 44 ee 44 00 44 
-                    22 00 00 44 00 00 00 22 11 00 00 11 00 00 11 00 
-                    11 88 00 22 00 88 dd 88 00 44 ee 44 00 00 00 44 
-                    11 00 33 55 22 66 88 cc bb dd 44 aa ee 77 33 77 
-                    00 00 00 00 00 00 00 00 ee ff ff 66 66 bb 88 66 
-                    ff ff 77 aa cc 22 66 cc 00 00 00 00 00 00 00 00 
-                    00 00 11 22 11 33 44 66 dd 66 aa dd 77 33 11 33 
-                    88 88 00 00 00 88 88 88 77 77 77 33 33 55 44 33 
-                    77 ff bb 55 66 99 33 66 88 88 88 00 00 00 00 00 
-                    00 00 00 11 00 11 22 33 33 11 dd 66 bb 99 00 11 
-                    44 00 00 88 88 cc cc cc 33 33 33 11 11 00 00 00 
-                    bb ff dd aa aa 22 ee 66 cc cc cc 88 88 00 cc 88 
-                    00 00 00 00 00 00 11 11 11 00 66 bb 55 cc 00 88 
-                    aa 88 88 44 cc ee 66 ee 11 11 11 00 00 00 00 00 
-                    dd ff ee dd dd 11 77 33 ee ee ee 44 44 00 66 44 
-                    11 00 33 55 22 66 88 cc bb 66 44 aa ee 77 33 77 
-                    00 00 00 00 00 00 00 00 ee ff ff 66 66 11 77 22 
-                    ff ff 77 aa aa 99 33 66 00 00 00 00 00 00 00 00 
-                    00 00 11 22 11 33 44 66 dd 33 aa dd 77 33 11 33 
-                    88 00 00 00 00 88 88 88 77 77 77 33 33 00 33 11 
-                    77 ff bb 55 55 cc 99 33 88 88 88 00 00 88 88 00 
-                    00 00 00 11 00 11 22 33 55 11 dd 66 bb 99 00 11 
-                    88 00 00 88 88 cc cc cc 33 33 33 11 11 22 22 11 
-                    bb ff dd aa bb dd 33 66 cc cc cc 88 00 00 00 00 
-                    00 00 00 00 00 00 11 11 22 00 66 bb 55 cc 00 88 
-                    cc 88 88 44 cc ee 66 ee 11 11 11 00 00 11 11 00 
-                    dd ff ee dd dd 66 11 bb ee ee ee 44 88 88 88 00 
-                    66 22 22 55 77 ee cc ee 88 00 cc aa 44 66 11 33 
-                    00 00 00 00 00 00 00 00 ff ff ee 55 33 22 33 11 
-                    77 ff ff 66 66 dd 11 aa 00 00 00 00 00 00 00 00 
-                    33 11 11 22 33 77 66 77 44 00 66 dd aa 33 00 11 
-                    00 00 00 00 00 00 88 88 77 77 77 22 11 11 11 00 
-                    bb ff 77 bb bb 66 88 dd 88 88 88 00 00 88 88 00 
-                    33 11 00 11 11 33 33 33 66 88 bb 66 dd 99 00 88 
-                    00 00 00 88 00 88 44 cc 33 33 33 11 11 22 33 11 
-                    dd ff bb 55 55 66 33 99 cc cc cc 88 88 00 88 00 
-                    11 00 00 00 00 11 11 11 bb cc 55 bb ee cc 88 cc 
-                    00 00 88 44 88 cc 22 66 11 11 11 00 00 11 11 00 
-                    ee ff dd aa aa 33 99 cc ee ee ee cc cc 00 cc 88 
-                    bb 22 22 55 77 ee cc ee 00 00 cc aa 44 66 11 33 
-                    00 00 00 00 00 00 00 00 ff ff ee 55 55 11 dd 55 
-                    77 ff ff 66 66 00 cc 88 00 00 00 00 00 00 00 00 
-                    55 11 11 22 33 77 66 77 88 00 66 dd aa 33 00 11 
-                    00 00 00 00 00 00 88 88 77 77 77 22 22 00 66 22 
-                    bb ff 77 bb bb 88 ee cc 88 88 88 00 00 00 00 00 
-                    33 22 00 11 11 33 33 33 66 cc bb 66 dd 99 00 88 
-                    00 00 00 88 00 88 44 cc 33 33 33 11 00 11 11 00 
-                    dd ff bb 55 dd 33 88 dd cc cc cc 88 88 44 44 88 
-                    11 11 00 00 00 11 11 11 bb 66 55 bb ee cc 88 cc 
-                    00 00 88 44 88 cc 22 66 11 11 11 00 00 00 00 00 
-                    ee ff dd aa 66 99 cc 66 ee ee ee cc cc aa 22 cc 
+.MONGIES            ; org 0x39c0
+                    cfgbmp(12, 16, 2bpp)
+                    incbmp("sprites/alien_birth0.bmp")
+                    incbmp("sprites/alien_birth1.bmp")
+                    incbmp("sprites/alien_birth2.bmp")
+                    incbmp("sprites/alien_birth3.bmp")
+                    incbmp("sprites/alien_mongy0.bmp")
+                    incbmp("sprites/alien_mongy0.bmp")
+                    incbmp("sprites/alien_mongy0.bmp")
+                    incbmp("sprites/alien_mongy0.bmp")
+                    incbmp("sprites/alien_worm0.bmp")
+                    incbmp("sprites/alien_worm1.bmp")
+                    incbmp("sprites/alien_worm2.bmp")
+                    incbmp("sprites/alien_worm3.bmp")
+.DERVISH            ; org $3c00
+                    incbmp("sprites/dervish0.bmp") 
+                    incbmp("sprites/dervish1.bmp")
+                    incbmp("sprites/dervish2.bmp")
+                    incbmp("sprites/dervish3.bmp")
+                    incbmp("sprites/explosion0.bmp")
+                    incbmp("sprites/explosion1.bmp")
+                    incbmp("sprites/explosion2.bmp")
+                    incbmp("sprites/explosion3.bmp")
+                    incbmp("sprites/blob_left0.bmp")
+                    incbmp("sprites/blob_left1.bmp")
+                    incbmp("sprites/blob_left2.bmp")
+                    incbmp("sprites/blob_left3.bmp")
+                    incbmp("sprites/blob_left4.bmp")
+                    incbmp("sprites/blob_left5.bmp")
+                    incbmp("sprites/blob_left6.bmp")
+                    incbmp("sprites/blob_left7.bmp")
+                    incbmp("sprites/blob_right0.bmp")
+                    incbmp("sprites/blob_right1.bmp")
+                    incbmp("sprites/blob_right2.bmp")
+                    incbmp("sprites/blob_right3.bmp")
+                    incbmp("sprites/blob_right4.bmp")
+                    incbmp("sprites/blob_right5.bmp")
+                    incbmp("sprites/blob_right6.bmp")
+                    incbmp("sprites/blob_right7.bmp")
+                    
+                    ;org $4080
+                    ; looks like electric zap or blob bullets?
                     00 00 44 00 00 00 88 11 00 00 22 00 00 00 44 00 
                     00 00 00 11 00 00 00 00 00 00 88 00 22 00 00 00 
                     00 88 00 00 44 00 22 00 00 33 00 88 00 88 00 00 
@@ -5231,18 +5202,16 @@ ROOMS_VISITED = $0380
                     00 cc dd 11 44 11 aa 11 00 33 bb 88 22 88 55 88 
                     22 55 00 00 00 00 00 00 22 55 88 00 00 00 00 00 
                     00 55 22 00 00 00 00 00 88 55 22 00 00 00 00 00 
-                    dd 00 55 bb bb dd 55 00 dd 00 aa 55 55 bb aa 00 
-                    00 00 00 00 00 00 00 00 55 00 22 55 55 66 22 00 
-                    dd 00 dd 66 66 dd dd 00 88 00 00 88 88 88 00 00 
-                    11 00 11 22 22 33 11 00 dd 00 66 77 77 66 66 00 
-                    cc 00 88 44 44 cc 88 00 11 00 00 11 11 11 00 00 
-                    dd 00 bb 77 77 bb bb 00 cc 00 44 22 22 66 44 00 
+
+.HOVERPAD
+                    incbmp("sprites/hoverpad0.bmp", 12, 8, 2bpp);
+                    incbmp("sprites/hoverpad1.bmp", 12, 8, 2bpp);
+                    incbmp("sprites/hoverpad2.bmp", 12, 8, 2bpp);
+                    incbmp("sprites/hoverpad3.bmp", 12, 8, 2bpp);
 
 .ROOM_DATA          ; org $4180
                     INCBIN "rooms.bin" ; 6KB of room data, 12 bytes per room
                     
-
-
                     ; org $5980
                     00 00 00 00 00 00 11 11 11 11 11 11 11 11 11 11 
                     10 01 11 11 11 11 11 11 11 11 11 11 11 11 11 11 
@@ -5260,11 +5229,12 @@ ROOMS_VISITED = $0380
                     11 11 11 11 00 11 00 11 11 11 11 00 11 00 11 11 
                     00 11 00 11 
                     
+
                     ; org #$5a64 (calc uses #$5a34 cos item 0 is empty space)
 .OBJECT_SPRITES     ; these are monochrome, 48 bytes each
 
                     ; TODO: Update Beebasm to support a graphic import config directive
-                    cfgbmp(1bpp, mode 5, double_width=true, width=16, height=24)
+                    cfgbmp(bpp=1, double_width=true, width=16, height=24)
 
                     ; TODO: Update Beebasm to support including bitmaps...
                     incbmp("objects/01_rock.bmp");
@@ -5292,50 +5262,27 @@ ROOMS_VISITED = $0380
                     incbmp("objects/23_lift_top.bmp");
                     incbmp("objects/24_stars.bmp");
 
-                    ; org $5ee4
-                    10 40 60 50 30 00 00 01 81 01 03 02 
-                    06 0c 09 03 08 60 b0 60 01 0f 2e aa 00 00 00 00 
-                    08 08 88 88 01 02 02 02 03 03 01 01 17 0c 08 2a 
-                    3f 07 08 07 aa 88 22 bb cf 0c 03 0f 00 88 cc 0c 
-                    00 0c 0c 04 01 00 00 00 00 00 00 00 06 08 0d 06 
-                    06 03 00 00 0d 07 0e 05 0f 0c 00 00 0c 08 08 08 
-                    00 00 00 00 00 00 06 09 0b 0c 0e 07 00 00 01 01 
-                    01 01 00 0a 00 0d 0e 0e 0e 0e 0c 00 00 08 0c 0c 
-                    0c 04 00 ee 07 03 03 01 00 00 00 00 0d 0d 0d 0e 
-                    0f 03 00 01 1d 1d 0c 0c 0a 07 07 07 99 11 15 0e 
-                    0e 06 04 00 00 00 00 10 10 10 00 40 01 01 c1 61 
-                    c1 00 00 00 02 00 00 00 30 68 18 08 00 00 00 00 
-                    00 80 80 00 a0 60 20 00 40 50 70 20 00 60 50 b0 
-                    60 01 01 01 08 18 38 38 18 08 00 00 00 80 40 80 
-                    80 20 30 f0 03 06 0c 40 e0 50 40 20 09 0c 07 03 
-                    00 c0 60 c1 00 08 0f 07 04 0c 18 18 20 0e 0f 08 
-                    80 c0 40 40 00 70 c0 a0 c0 10 00 20 01 01 01 01 
-                    c1 41 41 80 00 00 00 60 70 40 20 08 20 20 a0 60 
-                    20 60 40 00 00 10 fe ff f7 ff ff 87 fe ff ff 1e 
-                    00 80 f7 ff ff 1e 2e 01 f7 ff ff 87 fe ff ff 1e 
-                    ff 87 47 08 21 1e 2e 01 47 08 48 87 2e 01 21 1e 
-                    48 87 47 08 10 00 f1 00 02 00 02 00 11 00 00 00 
-                    ff 00 01 00 12 00 01 00 3c 00 02 00 13 00 02 00 
-                    14 00 05 00 12 00 03 00 64 00 01 00 10 00 f9 00 
-                    02 00 01 00 00 21 40 44 97 73 f0 4f de fe f0 2f 
-                    00 48 a0 2a 73 5d 3f 5d 5b 75 aa 1a ad ea 55 85 
-                    ec ab cf ab 20 01 00 00 74 03 99 09 f2 0e dd 0d 
-                    40 08 00 00 00 c0 de ad 00 10 d3 ad 00 c0 de ad 
-                    00 10 d3 2d 6a 55 64 a6 3a 55 b1 2b 5a 45 45 a6 
-                    52 15 d9 2b db ed cc 89 d6 3d 99 0c db ed cc 89 
-                    d6 3d 99 0c 33 ed ee 40 ff 0f ff 10 cc 7b 56 f0 
-                    f0 70 ff 70 88 88 88 88 00 00 00 00 ae ae ae ee 
-                    ce 89 ed ff 88 88 88 48 00 00 00 10 ea ee aa ea 
-                    f9 8f 8b ff f0 e0 ff e0 33 ed a6 f0 ff 0f ff 80 
-                    cc 7b 77 20 b7 91 73 ff 57 57 57 77 00 00 00 00 
-                    11 11 11 11 9f ff d1 f1 75 77 55 75 00 00 00 80 
-                    11 11 11 21 00 33 66 55 dd ff 88 44 ff 88 77 ff 
-                    ff ff 00 10 ff 11 ee ff ff ff 33 d1 00 cc 66 aa 
-                    bb ff 11 11 88 88 88 88 88 88 88 88 00 00 00 00 
-                    00 00 00 00 e0 a0 e0 a0 e0 a0 e0 e0 bb bb bb ff 
-                    dd dd dd dd 88 88 88 88 88 88 88 44 00 00 00 00 
-                    00 00 00 10 a0 e0 e0 e0 a0 a0 a0 e0 dd dd dd dd 
-                    dd dd dd dd 00 b3 4b 0b 4b 86 4b dc 4b fb 4b fd 
+                    ; org $5ee4 - 3 2bpp graphics for the plants (96 bytes per object)
+                    cfgbmp(bpp=2, double_width=true, width=16, height=24)
+                    incbmp("objects/25_plant_teeth.bmp");
+                    incbmp("objects/27_plant_flower.bmp");
+                    incbmp("objects/29_plant_middle.bmp");
+
+                    ; A few mono graphics for the lower half of the map
+                    cfgbmp(bpp=1, double_width=true, width=16, height=24)
+                    incbmp("objects/31.bmp");
+                    incbmp("objects/32.bmp");
+                    incbmp("objects/33.bmp");
+                    incbmp("objects/34.bmp");
+                    incbmp("objects/35_access_gate_left.bmp");
+                    incbmp("objects/36_access_gate_right.bmp");
+
+                    ; Teleporter                     
+                    cfgbmp(bpp=2, double_width=true, width=16, height=24)
+                    incbmp("objects/37_teleport.bmp");
+
+                    ; org $6184
+                    00 b3 4b 0b 4b 86 4b dc 4b fb 4b fd 
                     4b ff 4b ff 4b de 49 cf 4b 9d 4b ae 4b d2 4b f2 
                     4b f1 4b b1 49 81 8a f8 4b f6 2b 77 33 55 22 ee 
                     cc aa 44 11 32 23 11 88 c4 4c 88 22 55 33 77 44 
@@ -5345,19 +5292,28 @@ ROOMS_VISITED = $0380
                     0b 48 2a 6a 40 36 29 16 47 38 22 2a 46 a0 23 60 
                     43 8c 4c 0e 36 0a 33 3c 4f dc 4d e2 2d 54 24 56 
                     2c de 4d 3e 4a 50 4a 52 36 e2 38 c2 42 72 4e 74 
-                    40 d2 23 74 33 52 4f 47 41 4c cc 1f 36 56 49 4c 
-                    47 41 cc 28 3a 54 41 4d 49 53 cc 42 3a 41 53 4f 
-                    47 45 cc 96 3a 44 41 52 41 51 cc a2 3a 51 55 41 
-                    52 4b cc d5 3a 53 41 4d 41 4c cc 21 3b 4c 45 58 
-                    49 41 cc 57 3b 4b 4f 50 45 58 cc 7c 37 55 52 49 
-                    41 48 cc b1 3b 48 41 52 49 41 cc c9 3b 4f 4b 52 
-                    49 50 cc cd 3b 41 52 4c 4f 4e cc d6 3b 4d 49 53 
-                    45 53 cc f3 47 4f 54 52 55 4e cc fa 4b 00 11 22 
-                    44 66 22 22 33 00 88 44 22 66 44 44 cc
+                    40 d2 23 74 33 
+                    EQUS "ROGAL" cc 1f 36 
+                    EQUS "VILGA" cc 28 3a 
+                    EQUS "TAMIS" cc 42 3a 
+                    EQUS "ASOGE" cc 96 3a 
+                    EQUS "DARAQ" cc a2 3a 
+                    EQUS "QUARK" cc d5 3a 
+                    EQUS "SAMAL" cc 21 3b 
+                    EQUS "LEXIA" cc 57 3b 
+                    EQUS "KOPEX" cc 7c 37 
+                    EQUS "URIAH" cc b1 3b 
+                    EQUS "HARIA" cc c9 3b 
+                    EQUS "OKRIP" cc cd 3b 
+                    EQUS "ARLON" cc d6 3b 
+                    EQUS "MISES" cc f3 47 
+                    EQUS "OTRUN" cc fa 4b 
 
-.L62ad               lda #$00
+                    00 11 22 44 66 22 22 33 00 88 44 22 66 44 44 cc
+
+.L62ad              lda #$00
                     sta $8b
-.L62b1               ldy $8b
+.L62b1              ldy $8b
                     sec
                     lda $0150,y
                     sbc #$01
@@ -5395,13 +5351,13 @@ ROOMS_VISITED = $0380
                     lda #$62
                     sta $8d
                     jsr S65d4
-.L62f7               inc $8b
+.L62f7              inc $8b
                     lda $8b
                     cmp #$08
                     bne L62b1
                     rts
                     
-.S6300               lda $8e
+.S6300              lda $8e
                     and #$07
                     sta $89
                     txa
@@ -5626,11 +5582,13 @@ ROOMS_VISITED = $0380
                     
                     dd 99 bb 99 ff 00 ff 99 dd 99 dd 99 ff 00 
 
+
+.DRAW_OBJECT
+{
                     ; On entry, X and Y hold sprite size (in chars, ie multiples of 8)
-                    ; ($8c) = address of sprite data
+                    ; ($8c) = address of sprite data (2bpp, like screen)
                     ; ($8e) = screen address to draw to
 
-.DRAW_SPRITE
                     ; $8b = number of character rows (i.e. 8 * sprite height)
                     ; $8a = width * 8 (i.e. number of bytes per character row)
                     sty $8b
@@ -5640,14 +5598,14 @@ ROOMS_VISITED = $0380
                     asl a
                     sta $8a
 
-.draw_sprite_slice  ldy $8a
+    .draw_slice     ldy $8a
                     dey
 
-                    ; Draw one row-sized slice of sprite.
-.draw_sprite_pixels lda ($8c),y
+                    ; Draw one character-row-sized slice
+    .draw_pixels    lda ($8c),y
                     sta ($8e),y
                     dey
-                    bpl draw_sprite_pixels
+                    bpl draw_pixels
 
                     ; Move down one character row in screen memory (#$100 bytes)
                     inc $8f
@@ -5663,42 +5621,64 @@ ROOMS_VISITED = $0380
 
                     ; Repeat until all slices done
                     dec $8b
-                    bne draw_sprite_slice
+                    bne draw_slice
                     rts
-                    
-.S6526              lda $8e
+}
+
+
+.DRAW_SPRITE
+; X and Y hold sprite size (in chars, ie multiples of 8)
+; ($8c) = address of sprite data (2bpp, like screen)
+; ($8e) = screen address to draw to
+{
+                    ; $89 = screen address mod 8, i.e.  vertical offset within character row
+                    lda $8e
                     and #$07
                     sta $89
+                    ; $8a = width * 8 (i.e. number of bytes per character row)
                     txa
                     asl a
                     asl a
                     asl a
                     sta $8a
+                    ; $8b = number of character rows (i.e. 8 * sprite height)
                     sty $8b
-.L6534              ldy #$00
+
+.draw_row           ldy #$00
                     sec
+                    ; $88 = screen address mod 8 (already calculated above!)
                     lda $8e
                     and #$07
                     sta $88
+                    ; Subtract it from 8 to get the number of pixel rows to draw this slice
                     lda #$08
                     sbc $88
                     sta $88
-.L6543              lda ($8e),y
+.draw_column
+                    ; Draw a column of pixels
+                    lda ($8e),y
                     eor ($8c),y
                     sta ($8e),y
                     iny
                     cpy $88
-                    bne L6543
+                    bne draw_column
+
+                    ; Reached bottom of column. Now we have to move to top of next column
+                    ; Y=number of pixel row drawn so far
+                    ; Y=(Y&7)?(Y+8):Y
                     tya
                     clc
                     adc #$07
                     and #$f8
                     tay
+                    ; Add 8 to pixel-rows-this-slice
                     lda $88
                     adc #$08
                     sta $88
                     cpy $8a
-                    bne L6543
+                    bne draw_column
+
+                    ; Move screen address one row down and one column left (possibly cos Y is 8?)
                     clc
                     lda $8e
                     adc #$f8
@@ -5706,6 +5686,7 @@ ROOMS_VISITED = $0380
                     lda $8f
                     adc #$00
                     sta $8f
+
                     lda $89
                     beq L658f
                     ldy #$00
@@ -5726,13 +5707,16 @@ ROOMS_VISITED = $0380
                     bne L657d
                     cpy $8a
                     bne L6572
-.L658f              clc
+.L658f              
+                    ; Move screen address ($8e) one column (i.e. 4 pixels) right
+                    clc
                     lda $8e
                     adc #$08
                     sta $8e
                     lda $8f
                     adc #$00
                     sta $8f
+
                     lda $8c
                     adc $8a
                     sta $8c
@@ -5740,18 +5724,19 @@ ROOMS_VISITED = $0380
                     adc #$00
                     sta $8d
                     dec $8b
-                    bne L6534
+                    bne draw_row
                     rts
-                    
-.S65ad               sty $8b
+}
+
+.S65ad              sty $8b
                     txa
                     asl a
                     asl a
                     asl a
                     sta $8a
-.L65b5               ldy $8a
+.L65b5              ldy $8a
                     dey
-.L65b8               lda ($8e),y
+.L65b8              lda ($8e),y
                     eor ($8c),y
                     sta ($8e),y
                     dey
