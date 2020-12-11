@@ -23,6 +23,8 @@ zSCORE0 = $46
 zSCORE1 = $47
 zSCORE2 = $48
 zLIVES = $49
+zBLOB_LO = $70
+zBLOB_HI = $71
 zGRAVITY_INDEX = $73
 zROOM_LO = $7e
 zROOM_HI = $7f
@@ -68,9 +70,9 @@ ROOMS_VISITED = $0380
                     jsr L0e00
 
                     ; ($8c) = $6124 = Teleport graphic
-                    lda #$24
+                    lda LO(TELEPORT)
                     sta $8c
-                    lda #$61
+                    lda HI(TELEPORT)
                     sta $8d
                     lda #$d0
                     sta $8e
@@ -167,7 +169,7 @@ ROOMS_VISITED = $0380
                     asl a
                     sec
                     sbc #$08
-                    sta $70
+                    sta zBLOB_LO
                     lda #$0b
                     sta $72
                     lda $6223,y
@@ -302,7 +304,9 @@ ROOMS_VISITED = $0380
                     sta $88
                     lda #$00
                     sta $89
-.L10d6              lda #$13
+.L10d6              
+                    ; Wait for vsync (*FX 19)
+                    lda #$13
                     jsr $fff4
                     lda $86
                     sta $8e
@@ -337,11 +341,11 @@ ROOMS_VISITED = $0380
                     dey
                     bpl L111e
 
-                    ; ???
+                    ; Initial screen pos = $7780, midpoint of game screen
                     lda #$80
-                    sta $70
+                    sta zBLOB_LO
                     lda #$77
-                    sta $71
+                    sta zBLOB_HI
 
                     ; Reset score to zero
                     lda #$00
@@ -617,9 +621,9 @@ ROOMS_VISITED = $0380
                     sta $3e
                     jsr S2560
 .L12ef              lda $5a
-                    sta $70
+                    sta zBLOB_LO
                     lda $5b
-                    sta $71
+                    sta zBLOB_HI
                     lda $5c
                     sta $72
                     lda $5d
@@ -709,8 +713,8 @@ ROOMS_VISITED = $0380
                     ldy zROOM_HI
                     jsr S25f0
                     jsr S2571
-                    ldx $70
-                    ldy $71
+                    ldx zBLOB_LO
+                    ldy zBLOB_HI
                     jsr S252f
                     stx $74
                     sty $75
@@ -961,6 +965,8 @@ ROOMS_VISITED = $0380
                     sta $95
                     lda #$02
 .L158f              pha
+
+                    ; Wait for vsync (*FX 19)
                     lda #$13
                     jsr $fff4
                     lda $603e
@@ -1003,8 +1009,8 @@ ROOMS_VISITED = $0380
 .L15df              dec zROOM_LO
                     lda #$03
                     sta zGRAVITY_INDEX
-                    lda #$e8  ; might be moving Blob position to far right of screen
-                    sta $70
+                    lda #$e8  ; position Blob at far right of screen
+                    sta zBLOB_LO
                     jmp L1321
                     
 .L15ec               jsr S20d9
@@ -1101,8 +1107,8 @@ ROOMS_VISITED = $0380
                     sta $80
 .L16af               lda #$00
                     sta $f8
-                    ldx $70
-                    ldy $71
+                    ldx zBLOB_LO
+                    ldy zBLOB_HI
                     jsr S65e0
                     stx $8e
                     sty $8f
@@ -1111,7 +1117,7 @@ ROOMS_VISITED = $0380
                     stx $8c
                     ldx #$02
                     ldy #$00
-                    lda $70
+                    lda zBLOB_LO
                     and #$07
                     beq L16ce
                     inx
@@ -1141,7 +1147,7 @@ ROOMS_VISITED = $0380
                     sta $f8
 .L16fb               ldx #$02
                     ldy #$02
-                    lda $70
+                    lda zBLOB_LO
                     and #$07
                     beq L1706
                     inx
@@ -1227,9 +1233,11 @@ ROOMS_VISITED = $0380
                     cmp #$03
                     bne L17b1
                     sec
-                    lda $70
+
+                    ; Move Blob one column left
+                    lda zBLOB_LO
                     sbc #$08
-                    sta $70
+                    sta zBLOB_LO
                     dec $74
 .L17b1               lda $22
                     and #$fe
@@ -1253,9 +1261,11 @@ ROOMS_VISITED = $0380
                     sta $72
                     and #$03
                     bne L17e4
-                    lda $70
+
+                    ; Move Blob one column right
+                    lda zBLOB_LO
                     adc #$08
-                    sta $70
+                    sta zBLOB_LO
                     inc $74
 .L17e4               lda $22
                     ora #$01
@@ -1268,8 +1278,8 @@ ROOMS_VISITED = $0380
                     and #$0c
                     cmp #$0c
                     beq L17ee
-                    ldx $70
-                    ldy $71
+                    ldx zBLOB_LO
+                    ldy zBLOB_HI
                     jsr S252f
                     sec
                     txa
@@ -1290,8 +1300,8 @@ ROOMS_VISITED = $0380
                     bpl L1814
                     jmp L182c
                     
-.L1820               lda $70
-                    and #$06
+.L1820              lda zBLOB_LO
+                    and #$06 ; ???
                     bne L182c
                     lda $f8
                     ora #$04
@@ -1322,16 +1332,16 @@ ROOMS_VISITED = $0380
                     and #$f7
                     sta $f8
                     sec
-                    lda $70
+                    lda zBLOB_LO
                     and #$07
                     sbc #$02
                     bcs L187d
                     sec
-                    lda $70
+                    lda zBLOB_LO
                     sbc #$fa
-                    sta $70
+                    sta zBLOB_LO
                     bcs L186f
-                    dec $71
+                    dec zBLOB_HI
 .L186f               sec
                     lda $74
                     sbc #$20
@@ -1340,14 +1350,14 @@ ROOMS_VISITED = $0380
                     dec $75
 .L187a               jmp L188a
                     
-.L187d               dec $70
-                    dec $70
+.L187d              dec zBLOB_LO
+                    dec zBLOB_LO
                     jmp L188a
                     
-.L1884               lda $70
+.L1884              lda zBLOB_LO
                     and #$f8
-                    sta $70
-.L188a               lda $f8
+                    sta zBLOB_LO
+.L188a              lda $f8
                     and #$08
                     bne L18a9
                     lda $80
@@ -1361,11 +1371,11 @@ ROOMS_VISITED = $0380
                     sta $74
                     bcc L18a6
                     inc $75
-.L18a6               jmp L18af
+.L18a6              jmp L18af
                     
-.L18a9               lda $70
+.L18a9              lda zBLOB_LO
                     and #$f8
-                    sta $70
+                    sta zBLOB_LO
 .L18af               lda $76
                     beq L18c9
                     lda $9e
@@ -1395,15 +1405,15 @@ ROOMS_VISITED = $0380
                     lda $80
                     and #$03
                     bne L18c9
-                    ldx $70
-                    ldy $71
+                    ldx zBLOB_LO
+                    ldy zBLOB_HI
                     lda zGRAVITY_INDEX
                     beq L18f4
                     iny
                     iny
                     iny
                     iny
-.L18f4               dey
+.L18f4              dey
                     jsr S65e0
                     ldy #$02
                     lda $72
@@ -1421,23 +1431,23 @@ ROOMS_VISITED = $0380
                     cmp #$7c
                     bcc L1926
                     bcs L191a
-.L1916               lda zGRAVITY_INDEX
+.L1916              lda zGRAVITY_INDEX
                     beq L18c9
-.L191a               lda $70
+.L191a              lda zBLOB_LO
                     and #$f8
-                    sta $70
+                    sta zBLOB_LO
                     lda #$00
                     sta zGRAVITY_INDEX
-                    inc $71
-.L1926               ldy #$00
+                    inc zBLOB_HI
+.L1926              ldy #$00
                     jsr S20c2
                     bne L197f
-                    lda $70
+                    lda zBLOB_LO
                     and #$f8
                     sta $8e
                     lda zGRAVITY_INDEX
                     bne L1946
-                    dec $71
+                    dec zBLOB_HI
                     sec
                     lda $74
                     sbc #$20
@@ -1471,9 +1481,9 @@ ROOMS_VISITED = $0380
                     cmp #$07
                     bne L1982
                     lda $65fe
-                    sta $70
+                    sta zBLOB_LO
                     lda $65ff
-                    sta $71
+                    sta zBLOB_HI
 .L197f              jmp L19af
                     
 .L1982              lda ($8e),y
@@ -1514,13 +1524,13 @@ ROOMS_VISITED = $0380
 .L19c8               lda $76
                     eor #$01
                     sta $78
-                    lda $70
+                    lda zBLOB_LO
                     sta $7c
                     sta $8e
-                    lda $71
+                    lda zBLOB_HI
                     ora #$80
                     tax
-                    lda $70
+                    lda zBLOB_LO
                     and #$04
                     beq L19e0
                     inx
@@ -1598,9 +1608,9 @@ ROOMS_VISITED = $0380
                     lda $8f
                     ora #$60
                     sta $8f
-                    lda #$e0
+                    lda LO(SMASHTRAP)
                     sta $8c
-                    lda #$40
+                    lda HI(SMASHTRAP)
                     sta $8d
                     ldx #$04
                     ldy #$01
@@ -1623,28 +1633,28 @@ ROOMS_VISITED = $0380
                     clc
                     adc #$02
                     sta $0400,y
-.L1aaa               lda $70
+.L1aaa              lda zBLOB_LO
                     and #$f8
-                    sta $70
-.L1ab0               lda #$00
+                    sta zBLOB_LO
+.L1ab0              lda #$00
                     sta zGRAVITY_INDEX
-.L1ab4               lda #$00
+.L1ab4              lda #$00
                     sta $77
                     lda $72
                     and #$03
                     bne L1add
-                    lda $70
+                    lda zBLOB_LO
                     and #$f8
                     cmp $64
                     bne L1add
-                    lda $71
+                    lda zBLOB_HI
                     cmp $65
                     bne L1add
                     lda #$01
                     sta $77
-                    lda $70
+                    lda zBLOB_LO
                     and #$f8
-                    sta $70
+                    sta zBLOB_LO
                     lda #$00
                     sta $76
                     jsr S2571
@@ -1664,7 +1674,7 @@ ROOMS_VISITED = $0380
                     ldx #$02
                     ldy #$01
                     jsr S65ad
-.L1afd               lda $72
+.L1afd              lda $72
                     and #$03
                     bne L1b63
                     sec
@@ -1687,7 +1697,7 @@ ROOMS_VISITED = $0380
                     lda $75
                     cmp #$05
                     beq L1b43
-                    lda $70
+                    lda zBLOB_LO
                     and #$06
                     bne L1b43
                     ldy #$01
@@ -1700,40 +1710,42 @@ ROOMS_VISITED = $0380
                     and #$0c
                     cmp #$04
                     bne L1b63
-.L1b43               lda $70
+.L1b43              lda zBLOB_LO
                     and #$06
                     sbc #$02
                     bcc L1b55
-                    lda $70
+                    lda zBLOB_LO
                     and #$fe
                     sbc #$02
-                    sta $70
+                    sta zBLOB_LO
                     bcs L1b5f
-.L1b55               lda $70
+.L1b55              lda zBLOB_LO
                     and #$f8
                     ora #$06
-                    sta $70
-                    dec $71
-.L1b5f               lda #$01
+                    sta zBLOB_LO
+                    dec zBLOB_HI
+.L1b5f              lda #$01
                     bne L1b65
-.L1b63               lda #$00
-.L1b65               sta $9e
+.L1b63              lda #$00
+.L1b65              sta $9e
                     lda $76
                     beq L1b71
-                    lda $71
+                    lda zBLOB_HI
                     cmp #$7d
                     bne L1b95
-.L1b71               lda $71
+.L1b71              lda zBLOB_HI
                     cmp #$7c
                     bmi L1b95
-                    lda $70
+                    lda zBLOB_LO
                     and #$07
                     beq L1b95
                     lda #$6d
-                    sta $71
-                    lda $70
+                    sta zBLOB_HI
+                    lda zBLOB_LO
                     and #$f8
-                    sta $70
+                    sta zBLOB_LO
+
+                    ; Move to room below
                     clc
                     lda zROOM_LO
                     adc #$10
@@ -1742,26 +1754,33 @@ ROOMS_VISITED = $0380
                     inc zROOM_HI
 .L1b92              jmp L1321
                     
-.L1b95              lda $71
+                    ; If blob has moved above $6d00 (top of game screen mem)...
+.L1b95              lda zBLOB_HI
                     cmp #$6c
                     bne L1bb9
+
+                    ; ... relocate him to $7c00 (bottom of game screen)
                     lda #$7c
-                    sta $71
-                    lda $70
+                    sta zBLOB_HI
+
+                    lda zBLOB_LO
                     and #$f8
                     ora $76
-                    sta $70
+                    sta zBLOB_LO
                     lda #$07
                     sta $75
                     sec
+
+                    ; Move to the room above in the map
                     lda zROOM_LO
                     sbc #$10
                     sta zROOM_LO
                     bcs L1bb6
                     dec zROOM_HI
+
 .L1bb6              jmp L1321
                     
-.L1bb9               lda $72
+.L1bb9              lda $72
                     and #$03
                     cmp #$03
                     bne L1be0
@@ -1769,9 +1788,9 @@ ROOMS_VISITED = $0380
                     and #$1f
                     cmp #$1d
                     bne L1be0
-                    lda $70
+                    lda zBLOB_LO
                     and #$07
-                    sta $70
+                    sta zBLOB_LO
                     lda $72
                     and #$f8
                     ora #$01
@@ -1787,10 +1806,10 @@ ROOMS_VISITED = $0380
                     lda $74
                     and #$1f
                     bne L1c0a
-                    lda $70
+                    lda zBLOB_LO
                     and #$07
                     ora #$e8
-                    sta $70
+                    sta zBLOB_LO
                     lda $72
                     and #$f8
                     ora #$02
@@ -1813,16 +1832,16 @@ ROOMS_VISITED = $0380
                     beq L1c20
                     bcs L1c5c
 .L1c20               ldx #$02
-                    lda $70
+                    lda zBLOB_LO
                     and #$07
                     bne L1c29
                     dex
 .L1c29               txa
                     clc
-                    adc $71
+                    adc zBLOB_HI
                     cmp $59
                     bcc L1c5c
-                    lda $70
+                    lda zBLOB_LO
                     and #$f8
                     cmp $58
                     beq L1c3b
@@ -1932,29 +1951,31 @@ ROOMS_VISITED = $0380
                     sta $3b
 .L1cff               jsr S23d4
                     lda $f6
-                    cmp $70
+                    cmp $zBLOB_LO
                     bne L1d19
                     lda $f7
-                    cmp $71
+                    cmp zBLOB_HI
                     bne L1d19
+
+                    ; Wait for vsync (*FX 19)
                     lda #$13
                     jsr $fff4
                     jsr S0e2b
                     jmp L1321
                     
-.L1d19               lda $72
+.L1d19              lda $72
                     and #$03
                     bne L1d4e
-                    lda $70
+                    lda zBLOB_LO
                     cmp $4c
                     bne L1d4e
-                    lda $71
+                    lda zBLOB_HI
                     cmp $4d
                     bne L1d4e
                     lda $4e
-                    sta $70
+                    sta zBLOB_LO
                     lda $4f
-                    sta $71
+                    sta zBLOB_HI
                     lda $4b
                     sta zROOM_LO
                     lda $72
@@ -1968,8 +1989,8 @@ ROOMS_VISITED = $0380
                     jsr S3542
                     jmp L1321
                     
-.L1d4e               sec
-                    lda $70
+.L1d4e              sec
+                    lda zBLOB_LO
                     and #$f8
                     sbc #$10
                     cmp $0d
@@ -1978,11 +1999,11 @@ ROOMS_VISITED = $0380
                     adc #$20
                     cmp $0d
                     bne L1d90
-.L1d60               lda $72
+.L1d60              lda $72
                     and #$03
                     bne L1d90
                     ldy #$04
-.L1d68               dey
+.L1d68              dey
                     bmi L1d90
                     lda $000f,y
                     cmp #$0a
@@ -1999,7 +2020,7 @@ ROOMS_VISITED = $0380
                     sta $61c4,y
                     lda #$01
                     sta $0d
-.L1d90               lda $76
+.L1d90              lda $76
                     beq L1da6
                     lda $80
                     and #$04
@@ -2010,9 +2031,9 @@ ROOMS_VISITED = $0380
                     lda $80
                     and #$03
                     beq L1da9
-.L1da6               jmp L1e5d
+.L1da6              jmp L1e5d
                     
-.L1da9               ldx #$11
+.L1da9              ldx #$11
                     ldy #$25
                     jsr S353d
                     lda #$00
@@ -2030,18 +2051,18 @@ ROOMS_VISITED = $0380
                     sec
                     sbc #$18
                     bcc L1dd4
-                    cmp $70
+                    cmp zBLOB_LO
                     bcs L1e0b
-.L1dd4               adc #$20
+.L1dd4              adc #$20
                     bcs L1ddc
-                    cmp $70
+                    cmp zBLOB_LO
                     bcc L1e0b
-.L1ddc               lda $052a,x
+.L1ddc              lda $052a,x
                     sbc #$02
-                    cmp $71
+                    cmp zBLOB_HI
                     bcs L1e0b
                     adc #$03
-                    cmp $71
+                    cmp zBLOB_HI
                     bcc L1e0b
                     lda $0529,x
                     and #$f8
@@ -2077,12 +2098,12 @@ ROOMS_VISITED = $0380
                     beq L1e20
                     lda zROOM_LO
                     sta $0528,y
-                    lda $70
+                    lda zBLOB_LO
                     and #$f8
                     sta $8e
                     ora $7f
                     sta $0529,y
-                    lda $71
+                    lda zBLOB_HI
                     sta $052a,y
                     sta $8f
                     lda $12
@@ -2103,7 +2124,7 @@ ROOMS_VISITED = $0380
                     lda $72
                     and #$03
                     bne L1ed1
-                    lda $70
+                    lda zBLOB_LO
                     ldy #$02
                     ldx #$09
                     cmp $ac
@@ -2135,16 +2156,16 @@ ROOMS_VISITED = $0380
                     tax
                     ldy $86
                     lda $00ac,y
-                    sta $70
+                    sta zBLOB_LO
                     stx $72
                     cpx #$03
                     bne L1eb5
                     sec
                     sbc #$08
-                    sta $70
-.L1eb5               lda #$06
+                    sta zBLOB_LO
+.L1eb5              lda #$06
                     sta $8b
-.L1eb9               lda #$03
+.L1eb9              lda #$03
                     jsr S3542
                     lda $91
                     eor #$07
@@ -2163,17 +2184,17 @@ ROOMS_VISITED = $0380
                     lda $75
                     sbc #$00
                     sta $8d
-                    lda $70
+                    lda zBLOB_LO
                     and #$07
                     bne L1eeb
                     ldy #$20
-.L1eeb               ldx #$01
+.L1eeb              ldx #$01
                     lda $72
                     and #$03
                     beq L1ef4
                     inx
-.L1ef4               stx $8e
-.L1ef6               tya
+.L1ef4              stx $8e
+.L1ef6              tya
                     and #$60
                     ora $8e
                     tay
@@ -2207,7 +2228,9 @@ ROOMS_VISITED = $0380
                     lda #$01
                     sta $7b
                     jsr S220f
-.L1f35               lda #$13
+
+.L1f35              ; Wait for vsync (*FX 19)
+                    lda #$13
                     jsr $fff4
                     jsr S20d9
                     dec $86
@@ -2223,9 +2246,9 @@ ROOMS_VISITED = $0380
                     beq L1f55
                     cmp #$03
                     bne L1f6c
-.L1f55              lda $70
+.L1f55              lda zBLOB_LO
                     sta $8e
-                    lda $71
+                    lda zBLOB_HI
                     sta $8f
 
                     ; Draw dervish ?
@@ -2236,10 +2259,10 @@ ROOMS_VISITED = $0380
                     ldx #$03
                     ldy #$02
                     jsr DRAW_SPRITE
-.L1f6c              lda $70
+.L1f6c              lda zBLOB_LO
                     and #$f8
                     sta $2340
-                    lda $71
+                    lda zBLOB_HI
                     sta $2341
                     lda #$00
                     sta $8e
@@ -2272,7 +2295,9 @@ ROOMS_VISITED = $0380
                     jsr L352b
                     lda #$78
                     sta $69
-.L1fbc               lda #$13
+.L1fbc              
+                    ; Wait for vsync (*FX 19)
+                    lda #$13
                     jsr $fff4
                     lda #$00
                     jsr S2eb6
@@ -2357,7 +2382,7 @@ ROOMS_VISITED = $0380
 .L2060               rts
                     
 .S2061               sta $8e
-                    lda $70
+                    lda zBLOB_LO
                     and #$07
                     clc
                     adc $8e
@@ -2371,21 +2396,21 @@ ROOMS_VISITED = $0380
                     adc #$00
                     sta $75
                     clc
-                    lda $70
+                    lda zBLOB_LO
                     adc #$f8
-                    sta $70
-                    lda $71
+                    sta zBLOB_LO
+                    lda zBLOB_HI
                     adc #$00
-                    sta $71
-.L2088               clc
-                    lda $70
+                    sta zBLOB_HI
+.L2088              clc
+                    lda zBLOB_LO
                     adc $8e
-                    sta $70
+                    sta zBLOB_LO
                     bcc L2093
-                    inc $71
-.L2093               rts
+                    inc zBLOB_HI
+.L2093              rts
                     
-.S2094               lda #$81
+.S2094              lda #$81
                     ldy #$ff
                     jsr $fff4
                     cpx #$ff
@@ -2421,9 +2446,9 @@ ROOMS_VISITED = $0380
                     
                     EQUB $10, $00, $f9, $00, $03, $00, $01, $00
 
-.S20d9              ldx $70
+.S20d9              ldx zBLOB_LO
                     stx $8e
-                    ldx $71
+                    ldx zBLOB_HI
                     stx $8f
                     lda $72
                     asl a
@@ -2449,12 +2474,12 @@ ROOMS_VISITED = $0380
                     bne L20d0
 
                     ; Draw the hoverpad
-                    lda $70
+                    lda zBLOB_LO
                     and #$07
                     ora $98
                     sta $8e
                     clc
-                    lda $71
+                    lda zBLOB_HI
                     adc #$02
                     sta $8f
                     lda $99
@@ -2932,10 +2957,10 @@ ROOMS_VISITED = $0380
                     EQUB $00, $12, $00, $f6, $00, $32, $00, $01, $00, $04, $01, $00, $00, $00, $00, $00 
                     EQUB $00, $08, $ec, $ec, $ec, $7e, $5a, $10, $00, $04, $00, $04, $00, $04, $00
 
-.S252f               stx $8e
+.S252f              stx $8e
                     sty $8f
                     ldx #$03
-.L2535               lsr $8f
+.L2535              lsr $8f
                     ror $8e
                     dex
                     bne L2535
@@ -2954,16 +2979,16 @@ ROOMS_VISITED = $0380
                     tay
                     rts
                     
-.S2554               ldx $70
-                    ldy $71
+.S2554              ldx zBLOB_LO
+                    ldy zBLOB_HI
                     jsr S252f
                     stx $74
                     sty $75
                     rts
                     
-.S2560               lda $70
+.S2560              lda zBLOB_LO
                     sta $5a
-                    lda $71
+                    lda zBLOB_HI
                     sta $5b
                     lda $72
                     sta $5c
@@ -2971,7 +2996,7 @@ ROOMS_VISITED = $0380
                     sta $5d
                     rts
                     
-.S2571               lda $70
+.S2571              lda zBLOB_LO
                     and #$f8
                     sta $98
                     lda $72
@@ -2981,7 +3006,7 @@ ROOMS_VISITED = $0380
                     sta $45
                     rts
                     
-.S2582               ldx $86
+.S2582              ldx $86
                     lda $0400,x
                     and #$3f
                     sta $8f
@@ -2990,7 +3015,7 @@ ROOMS_VISITED = $0380
                     asl a
                     sta $69
                     ldy #$00
-.L2593               ldx $69
+.L2593              ldx $69
                     lda $5980,x
                     and #$0f
                     tax
@@ -3197,12 +3222,12 @@ ROOMS_VISITED = $0380
                     lda $0400,x
                     beq L2708
                     ldy #$18
-.L2708               sty $64
-.L270a               lda $8e
+.L2708              sty $64
+.L270a              lda $8e
                     sta $0400,x
-.L270f               jmp L2839
+.L270f              jmp L2839
                     
-.L2712               ldy $0400,x
+.L2712              ldy $0400,x
                     lda #$cc
                     sta $0400,x
                     cpy #$00
@@ -3771,9 +3796,9 @@ ROOMS_VISITED = $0380
                     inc $8f
                     lda $76
                     beq L2b46
-                    lda #$20
+                    lda LO(HOVERPAD)
                     sta $8c
-                    lda #$41
+                    lda HI(HOVERPAD)
                     sta $8d
                     ldx #$02
                     ldy #$01
@@ -4180,9 +4205,9 @@ ROOMS_VISITED = $0380
                     ldy #$60
                     jsr S353d
                     dec $2f
-                    lda #$c0
+                    lda LO(SPRITES)
                     sta $8c
-                    lda #$39
+                    lda HI(SPRITES)
                     sta $8d
                     ldx #$03
                     ldy #$02
@@ -4387,7 +4412,7 @@ ROOMS_VISITED = $0380
 .L3013               clc
                     adc #$01
                     sta $018a,x
-.L3019               ldx $86
+.L3019              ldx $86
                     dec $0190,x
                     bne L309f
                     lda $018d,x
@@ -4397,8 +4422,8 @@ ROOMS_VISITED = $0380
                     cmp #$03
                     bcc L3079
                     bne L3090
-.L3031               ldy #$00
-                    lda $70
+.L3031              ldy #$00
+                    lda zBLOB_LO
                     and #$f8
                     cmp $0188,x
                     bcc L304f
@@ -4415,7 +4440,7 @@ ROOMS_VISITED = $0380
 .L304f               tya
                     ora #$04
                     tay
-.L3053               lda $71
+.L3053              lda zBLOB_HI
                     cmp $0189,x
                     bcc L306f
                     beq L305e
@@ -4518,16 +4543,16 @@ ROOMS_VISITED = $0380
                     lda $0188,x
                     and #$f8
                     sta $8e
-                    lda $70
+                    lda zBLOB_LO
                     and #$f8
                     sbc #$0f
                     bcc L313a
                     cmp $8e
                     bcs L316a
-.L313a               adc #$18
+.L313a              adc #$18
                     cmp $8e
                     bcc L316a
-                    lda $71
+                    lda zBLOB_HI
                     sbc #$02
                     cmp $0189,x
                     bcs L316a
@@ -4606,10 +4631,10 @@ ROOMS_VISITED = $0380
                     asl $8c
                     rol $8d
                     lda $8c
-                    adc #$c0
+                    adc LO(SPRITES)
                     sta $8c
                     lda $8d
-                    adc #$39
+                    adc HI(SPRITES)
                     sta $8d
                     ldx #$03
                     ldy #$02
@@ -5084,37 +5109,39 @@ ROOMS_VISITED = $0380
                     bpl L35d6
                     rts
                     
-                    53 b5 bb ba ec f6 f7 fb 50 05 8b 0f a0 0a 1f 0f 
-                    73 57 75 13 ec ae ea 8c 62 d6 85 0d 64 b6 1a 0b 
-                    56 08 21 22 73 0d c8 cc 62 56 d5 0f ec a6 fa 0f 
-                    12 04 26 01 a8 41 09 04 22 22 52 0b cc cc a4 0f 
-                    c0 1d 64 90 30 8b 62 90 f4 dd 0f 0b f2 33 0f 0d 
-                    21 32 01 11 c8 cc 08 88 11 70 fc 07 88 e0 f3 0e 
-                    ac 31 74 43 53 c8 e2 2c 37 74 43 03 ce e2 2c 0c 
-                    11 22 44 88 88 cc ee ff 0f 57 45 07 0f 2e 2a 0e 
-                    00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 
-                    00 00 c7 ef 00 00 3e 7f ce 8c 99 07 77 bb 11 0e 
-                    00 40 66 55 00 00 00 00 54 65 46 00 7f 15 00 00 
-                    00 00 00 00 31 13 20 44 00 11 42 ee 88 00 00 31 
-                    90 3b 81 2a 90 cd 18 45 44 84 1a 93 22 12 85 9c 
-                    c8 8c 40 22 00 00 00 00 11 00 00 c8 00 88 24 77 
-                    24 01 10 e4 13 42 28 30 4e 20 10 40 03 42 08 35 
-                    08 10 33 77 01 80 cc ee 55 32 01 80 ee cc 08 10 
-                    8c 24 41 c0 42 08 80 72 0c 24 01 ca 27 40 80 20 
-                    ee 24 11 00 13 00 00 88 00 00 00 00 44 02 31 13 
-                    39 a1 48 44 c9 58 21 22 a2 18 b3 09 54 81 dc 09 
-                    8c 00 00 11 77 42 88 00 22 04 c8 8c 00 00 00 00 
-                    00 30 77 77 00 e0 77 33 77 03 55 05 f3 0e 55 05 
-                    00 30 76 66 00 e0 b3 73 76 03 55 05 f3 0e 55 05 
-                    00 30 76 77 00 e0 b3 73 77 03 55 05 7f 0e 55 05 
-                    10 23 22 07 c0 e6 ee 0f 22 22 44 04 aa aa 59 05 
-                    00 31 65 56 00 ec b5 5b 35 10 22 62 e5 40 22 32 
-                    00 20 27 00 22 aa af aa 00 00 10 01 02 e4 fe 0f 
-                    21 55 55 22 ec ff ff ee 11 10 10 00 c4 c0 c8 08 
-                    70 44 77 67 f0 67 ff b7 76 77 77 07 7b 7f 77 0f 
-                    00 01 01 21 80 cc 0c 2c 23 22 03 03 ee ee 0e 0e 
-                    40 77 14 11 f0 66 0f 88 31 33 33 03 c8 40 04 0c 
-
+                    ;org $35e0
+                    cfgbmp(8, 16, 1bpp)
+                    incbmp("sprites/bonus_burger.bmp")
+                    incbmp("sprites/bonus_skull.bmp")
+                    incbmp("sprites/bonus_fire.bmp")
+                    incbmp("sprites/bonus_dunno.bmp")
+                    incbmp("sprites/bonus_platforms.bmp")
+                    incbmp("sprites/bonus_extra_life.bmp")
+                    incbmp("sprites/bonus_dunno2.bmp")
+                    incbmp("sprites/cheops_pyramid.bmp")
+                    incbmp("sprites/blank.bmp")
+                    incbmp("sprites/access_card.bmp")
+                    incbmp("sprites/key.bmp")
+                    incbmp("sprites/core_top_left.bmp")
+                    incbmp("sprites/core_top_mid.bmp")
+                    incbmp("sprites/core_top_right.bmp")
+                    incbmp("sprites/core_mid_left.bmp")
+                    incbmp("sprites/core_mid_mid.bmp")
+                    incbmp("sprites/core_mid_right.bmp")
+                    incbmp("sprites/core_bot_left.bmp")
+                    incbmp("sprites/core_bot_mid.bmp")
+                    incbmp("sprites/core_bot_right.bmp")
+                    incbmp("sprites/chip_1.bmp")
+                    incbmp("sprites/chip_2.bmp")
+                    incbmp("sprites/chip_unknown.bmp")
+                    incbmp("sprites/capacitor.bmp")
+                    incbmp("sprites/keyboard_legs.bmp")
+                    incbmp("sprites/aerial.bmp")
+                    incbmp("sprites/bulb.bmp")
+                    incbmp("sprites/floppy_disc.bmp")
+                    incbmp("sprites/spraycan.bmp")
+                    incbmp("sprites/aerosol.bmp")
+        
 .room_related_data ; $37C0 
                     19 a5 12 5a 5e e3 e4 dc 23 e2 53 1e e3 1e 4c 0b 
                     66 a3 59 52 62 54 c9 1e 64 e4 0e 62 64 19 56 60 
@@ -5150,16 +5177,16 @@ ROOMS_VISITED = $0380
                     21 3f 27 a5 60 43 3f a4 21 26 26 e3 66 3f ca e1 
 .end-of-room_related_data
 
-.MONGIES            ; org 0x39c0
+.SPRITES            ; org 0x39c0
                     cfgbmp(12, 16, 2bpp)
                     incbmp("sprites/alien_birth0.bmp")
                     incbmp("sprites/alien_birth1.bmp")
                     incbmp("sprites/alien_birth2.bmp")
                     incbmp("sprites/alien_birth3.bmp")
-                    incbmp("sprites/alien_mongy0.bmp")
-                    incbmp("sprites/alien_mongy0.bmp")
-                    incbmp("sprites/alien_mongy0.bmp")
-                    incbmp("sprites/alien_mongy0.bmp")
+                    incbmp("sprites/alien_moth0.bmp")
+                    incbmp("sprites/alien_moth1.bmp")
+                    incbmp("sprites/alien_moth2.bmp")
+                    incbmp("sprites/alien_moth3.bmp")
                     incbmp("sprites/alien_worm0.bmp")
                     incbmp("sprites/alien_worm1.bmp")
                     incbmp("sprites/alien_worm2.bmp")
@@ -5191,18 +5218,18 @@ ROOMS_VISITED = $0380
                     incbmp("sprites/blob_right7.bmp")
                     
                     ;org $4080
-                    ; looks like electric zap or blob bullets?
                     00 00 44 00 00 00 88 11 00 00 22 00 00 00 44 00 
                     00 00 00 11 00 00 00 00 00 00 88 00 22 00 00 00 
                     00 88 00 00 44 00 22 00 00 33 00 88 00 88 00 00 
                     00 44 99 00 00 11 00 00 00 00 11 00 00 00 11 88 
                     00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 
                     00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 
-                    00 cc dd 11 44 11 aa 11 00 33 bb 88 22 88 55 88 
-                    00 cc dd 11 44 11 aa 11 00 33 bb 88 22 88 55 88 
-                    22 55 00 00 00 00 00 00 22 55 88 00 00 00 00 00 
-                    00 55 22 00 00 00 00 00 88 55 22 00 00 00 00 00 
 
+.SMASHTRAP          ;org $40e0       
+                    incbmp("sprites/smashtrap.bmp", 16, 8, 2bpp);
+.ZAP                ;org $4100
+                    incbmp("sprites/zap0.bmp", 8, 8, 2bpp);
+                    incbmp("sprites/zap1.bmp", 8, 8, 2bpp);
 .HOVERPAD
                     incbmp("sprites/hoverpad0.bmp", 12, 8, 2bpp);
                     incbmp("sprites/hoverpad1.bmp", 12, 8, 2bpp);
@@ -5277,6 +5304,7 @@ ROOMS_VISITED = $0380
                     incbmp("objects/35_access_gate_left.bmp");
                     incbmp("objects/36_access_gate_right.bmp");
 
+.TELEPORT
                     ; Teleporter                     
                     cfgbmp(bpp=2, double_width=true, width=16, height=24)
                     incbmp("objects/37_teleport.bmp");
@@ -5537,8 +5565,8 @@ ROOMS_VISITED = $0380
                     and #$03
                     bne L649f
                     jsr S64d9
-.L649f               ldx $88
-                    lda $70
+.L649f              ldx $88
+                    lda zBLOB_LO
                     and #$f8
                     sec
                     sbc #$10
@@ -5551,11 +5579,11 @@ ROOMS_VISITED = $0380
                     lda $72
                     and #$03
                     beq L64cd
-.L64bc               lda $0101,x
-                    cmp $71
+.L64bc              lda $0101,x
+                    cmp zBLOB_HI
                     bcc L64cd
                     sbc #$03
-                    cmp $71
+                    cmp zBLOB_HI
                     bcs L64cd
                     lda #$04
                     sta $20
