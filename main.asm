@@ -1,7 +1,9 @@
-MAPCHAR ' ', 0
+MAPCHAR '-', 0
+MAPCHAR ' ', $5b
 MAPCHAR '·', $5d
 MAPCHAR '.', $5e
 MAPCHAR '%', $60
+MAPCHAR '0', $61
 MAPCHAR '1', $62
 MAPCHAR '2', $63
 MAPCHAR '3', $64
@@ -14,7 +16,9 @@ MAPCHAR '9', $6A
 MAPCHAR ':', $6B
 MAPCHAR '/', $6C
 
+osrdch = $ffe0
 osword = $fff1
+osbyte = $fff4
 
 ; Zero-page
 zCOMPLETION_FRACTION = $0b
@@ -25,6 +29,7 @@ zSCORE2 = $48
 zLIVES = $49
 zBLOB_LO = $70
 zBLOB_HI = $71
+zBLOB_FRAME = $72 ; index of which Blob sprite is current. 0-7=left, 8-15=right
 zGRAVITY_INDEX = $73
 zROOM_LO = $7e
 zROOM_HI = $7f
@@ -39,36 +44,55 @@ ROOMS_VISITED = $0380
 
 
                     org $e00
-.L0e00              jsr S0f11
-.L0e03              jsr RAND
+
+                    ; The teleport and cheops screens use a random palette. This shared code
+                    ; clears the screen and sets up the random palette.
+.INIT_TEXT_SCREEN   jsr CLEAR_SCREEN_AND_FLUSH
+
+                    ; $93 = random number from 0 to 4
+.get_rand_colour1   jsr RAND
                     and #$07
                     cmp #$05
-                    bcs L0e03
+                    bcs get_rand_colour1
                     sta $93
-.L0e0e              jsr RAND
+
+                    ; $95 = a different random number from 0 to 4
+.get_rand_colour2   jsr RAND
                     and #$07
                     cmp $93
-                    beq L0e0e
+                    beq get_rand_colour2
                     cmp #$05
-                    bcs L0e0e
+                    bcs get_rand_colour2
                     adc #$01
+
+                    ; Increment so $93 and $95 both hold different random numbers between 1 and 5 inclusive
                     sta $95
                     inc $93
+
+                    ; Set the palette
                     jsr $7f00
-.S0e24              ldx #$14
-                    ldy #$10
-                    jmp L352b
+
+                    ; "Tchonk" sound - used when you enter teleport and a couple of other places
+.PLAY_TCHONK_SOUND  ldx LO(TCHONK_SOUND)
+                    ldy HI(TCHONK_SOUND)
+                    jmp PLAY_SOUND_WITH_ENV
                     
-.S0e2b               ldx #$00
+
+.SHOW_TELEPORT_SCREEN       
+                    ; Copy the code for the current teleport into the screen text buffer
+                    ldx #$00
                     ldy $f5
-.L0e2f               lda $621d,y
-                    sta $0f52,x
+.L0e2f              lda (TELEPORTERS-8),y
+                    sta teleport_code,x
                     iny
                     inx
                     cpx #$05
                     bne L0e2f
-                    jsr L0e00
 
+                    ; Clear the screen and randomize the palette
+                    jsr INIT_TEXT_SCREEN
+
+                    ; Draw a teleport on the screen
                     ; ($8c) = $6124 = Teleport graphic
                     lda LO(TELEPORT)
                     sta $8c
@@ -81,147 +105,224 @@ ROOMS_VISITED = $0380
                     ldx #$04
                     ldy #$03
                     jsr DRAW_OBJECT
-                    ldx #$26
-                    ldy #$0f
+
+                    ; Draw text
+                    ldx LO(TELEPORT_TEXT)
+                    ldy HI(TELEPORT_TEXT)
                     jsr DRAW_TEXT
+
+                    ; Initialize char-pressed index to 0
                     lda #$00
                     sta $86
-.L0e60               jsr $ffe0
+
+                    ; Wait for user to press a key from A - Z
+.wait_for_key       jsr osrdch
                     and #$5f
                     cmp #$41
-                    bcc L0e60
+                    bcc wait_for_key
                     cmp #$5b
-                    bcs L0e60
+                    bcs wait_for_key
+
+                    ; Store the pressed character in the text buffer
                     ldx $86
                     sta $0f90,x
+
+                    ; 
                     sta $0f95
                     ldx #$95
                     ldy #$0f
                     jsr DRAW_TEXT
-                    ldx #$1e
-                    ldy #$0f
-                    jsr S353d
+
+                    ; Play a sound
+                    ldx LO(KEYPRESS_SOUND)
+                    ldy HI(KEYPRESS_SOUND)
+                    jsr PLAY_SOUND
+
+                    ; Increment the char index, loop back if not reached 5 chars.
                     inc $86
                     lda $86
                     cmp #$05
-                    bne L0e60
-                    ldy #$08
-.L0e8d               ldx #$00
-.L0e8f               lda $621d,y
+                    bne wait_for_key
+
+                    ; See if the code the user entered matches a code in the teleporters table
+                    ldy #$08 ; offset into teleporters table (+8)
+.compare_code       ldx #$00
+.compare_char       lda TELEPORTERS-8,y
                     cmp $0f90,x
-                    bne L0e9f
+                    bne try_next_code
                     iny
                     inx
                     cpx #$05
-                    bne L0e8f
-                    beq L0eb2
-.L0e9f               tya
+                    bne compare_char
+                    beq matched_teleport_code
+.try_next_code      tya
                     clc
                     adc #$08
                     and #$f8
                     tay
-                    bpl L0e8d
-                    jsr S0f17
-                    lda $f5
+                    bpl compare_code
+                    ; Y overflowed indicating we went through all 15 codes (that's why it starts at 8! Clever!)
+                    jsr PLAY_SHRILL_NOISE
+
+                    ; Code not recognized takes same path as teleporting does, you just 
+                    ; 'teleport' to same place you're already in :-)
+                    lda $f5 ; offset into TELEPORTERS of current teleport 
                     pha
-                    ldx #$98
-                    bne L0ebf
-.L0eb2               tya
+                    ldx LO(code_not_recognized_text)
+                    bne leave_teleport
+.matched_teleport_code
+                    tya
                     and #$f8
                     pha
                     ldx #$59
                     ldy #$04
-                    jsr L352b
-                    ldx #$b0
-.L0ebf              lda #$d5
+                    jsr PLAY_SOUND_WITH_ENV
+                    ldx LO(now_teleporting_text)
+
+.leave_teleport     
+                    ; Init counter to 213 (counter counts *up* to zero, so 42 frames at 50Hz)
+                    lda #$d5  
                     sta $86
-                    stx $7e
-.L0ec5              lda $86
+                    stx $7e   ; save low byte of text message to show
+.flash_message      
+                    ; Cycle the message text through all 4 colours
+                    lda $86
                     and #$03
                     ora #$80
-                    sta $0fb0
-                    sta $0f98
+                    sta now_teleporting_text
+                    sta code_not_recognized_text
+
+                    ; Draw the "CODE NOT RECOGNIZED" or the "NOW TELEPORTING" message
                     ldx $7e
                     ldy #$0f
                     jsr DRAW_TEXT
+
+                    ; *FX 19 : wait for vsync
                     lda #$13
-                    jsr $fff4
+                    jsr osbyte
+                    
+                    ; Increment counter and loop back if not done
                     inc $86
-                    bne L0ec5
+                    bne flash_message
+
+                    ; Pull the destination teleport offset off the stack
                     pla
                     tay
-                    lda $6224,y
+
+                    ; Each teleporter record is 8 bytes. Bytes 6 and 7 encode Blob's new screen address and room index:
+                    ;  RRRRRRRR | YYYYXXXR   where Y = Blob Y, X = Blob X, and R = room index (9 bits!)
+
+                    ; Get the 4-bit Y, multiply it by 2 and add a screen page offset.
+                    lda (TELEPORTERS-8+7),y
                     lsr a
                     lsr a
                     lsr a
                     lsr a
                     sta $8e
+
+                    ; Multiply by 3 (each row of objects is 3 character rows high)
                     asl a
                     adc $8e
-                    adc #$6e
-                    sta $71
-                    lda $6224,y
-                    lsr a
+                    adc #$6e;    // game screen starts at $6d00 iirc
+                    sta zBLOB_HI
+
+                    ; Get Blob's new X position from bits 1,2, and 3.
+                    lda (TELEPORTERS-8+7),y
+                    lsr a; lose bit 8 of the room index
+
+                    ; Multiply by 32 (the width of a room object)
                     asl a
                     asl a
                     asl a
                     asl a
                     asl a
+
+                    ; Subtract one column (4 pixels wide) so Blob is correctly positioned within the teleport
                     sec
-                    sbc #$08
+                    sbc #$08 
                     sta zBLOB_LO
+
+                    ; Set Blob's current frame to be facing right, rightmost.
                     lda #$0b
-                    sta $72
-                    lda $6223,y
+                    sta zBLOB_FRAME
+
+                    ; Get 9-bit room address
+                    lda (TELEPORTERS-8+6),y
                     sta zROOM_LO
-                    lda $6224,y
+                    lda (TELEPORTERS-8+7),y
                     and #$01
                     sta zROOM_HI
-.S0f11              jsr CLEAR_SCREEN
+.CLEAR_SCREEN_AND_FLUSH
+                    jsr CLEAR_SCREEN
                     jmp FLUSH_BUFFERS
                     
-.S0f17              ldx #$c4
-                    ldy #$0f
-                    jmp L352b
+; *** END OF TELEPORT CODE ****
 
+.PLAY_SHRILL_NOISE              
+                    ldx LO(SHRILL_NOISE)
+                    ldy HI(SHRILL_NOISE)
+                    jmp PLAY_SOUND_WITH_ENV
+
+.KEYPRESS_SOUND
                     EQUB $10, $00, $f1, $00, $01, $00, $01, $00
+.TELEPORT_TEXT
                     EQUB $81 
                     EQUB $1f, $03, $07 
                     EQUS "YOU  HAVE  ENTERED"
                     EQUB $1f, $13, $09 
                     EQUS "TELEPORT"
                     EQUB $1f, $0a, $0b 
-                    EQUS "CODE" 
-                    EQUB $5b, $6b $5b 
-                    EQUB $83, $28, $43, $29, $4b, $50
+                    EQUS "CODE : " 
+                    EQUB $83, 
+.teleport_code
+                    EQUS "(C)KP"    ; these chars are never seen, theyre a placeholder for the current teleport's code
                     EQUB $1f, $0c, $0e
                     EQUB $82 
-                    EQUS "ENTER[TELEPORTAL" 
+                    EQUS "ENTER TELEPORTAL" 
                     EQUB $1f, $0c, $10 
-                    EQUS "DESTINATION[CODE" 
+                    EQUS "DESTINATION CODE" 
                     EQUB $1f, $1a, $13 
-                    EQUB $83, $6d, $5b, $6d, $5b, $6d, $5b, $6d, $5b, $6d 
+                    EQUB $83, 
+                    EQUS "_ _ _ _ _" 
                     EQUB $81, $1f, $1a, $13, $0d 
-                    EQUB $00, $00, $00, $00, $00, $5b, $5b, $0d, $81
+                    EQUB $00, $00, $00, $00, $00, 
+.L0f95              EQUB $5b, $5b, $0d, 
+.code_not_recognized_text
+                    EQUB $81
                     EQUB $1f, $05, $15 
-                    EQUS "CODE[NOT[RECOGNISED" 
+                    EQUS "CODE NOT RECOGNISED" 
                     EQUB $0d 
+
+.now_teleporting_text
                     EQUB $81 
                     EQUB $1f, $0e, $15 
-                    EQUS "NOW[TELEPORTING" 
-                    EQUB $0d, $04, $01, $0a, $14, $1e, $01, $01, $01, $7e, $00, $00, $82 
-                    EQUB $7e, $7e, $11, $00, $04, $00, $c0, $00, $1e, $00, $1f, $0e, $08, $82 
-                    EQUS "CHEOPS[PYRAMID" 
-                    EQUB $1f, $0e, $0c, $81 
-                    EQUS "EXCHANGE[[[FOR" 
-                    EQUB $1f, $06, $0e 
-                    EQUS "1.[[2.[[3.[[4.[[5." 
-                    EQUB $0d, $04, $01, $f6, $f1, $ec, $04, $04, $04, $7e, $fa, $f3, $dc 
-                    EQUB $7e, $5a, $02, $00, $04, $00, $78, $00, $02, $00
+                    EQUS "NOW TELEPORTING" 
+                    EQUB $0d, 
+.SHRILL_NOISE
+                    ; Envelope
+                    EQUB $04, $01, $0a, $14, $1e, $01, $01, $01, $7e, $00, $00, $82, $7e, $7e, 
+                    ; Sound
+                    EQUB $11, $00, $04, $00, $c0, $00, $1e, $00
 
-.S102a              jsr L0e00
-                    ldx #$da
-                    ldy #$0f
+.CHEOPS_TEXT
+                    EQUB $1f, $0e, $08, $82 
+                    EQUS "CHEOPS PYRAMID" 
+                    EQUB $1f, $0e, $0c, $81 
+                    EQUS "EXCHANGE   FOR" 
+                    EQUB $1f, $06, $0e 
+                    EQUS "1.  2.  3.  4.  5." 
+                    EQUB $0d
+
+.TCHONK_SOUND       ; This is used on the start screen when you select 1,2, or 3; also
+                    ; when you enter a teleport and when you eat a bonus.
+                    ; Envelope data : 14 bytes
+                    EQUB $04, $01, $f6, $f1, $ec, $04, $04, $04, $7e, $fa, $f3, $dc, $7e, $5a
+                    ; Sound data : 8 bytes
+                    EQUB $02, $00, $04, $00, $78, $00, $02, $00
+
+.SHOW_CHEOPS_SCREEN jsr INIT_TEXT_SCREEN
+                    ldx LO(CHEOPS_TEXT)
+                    ldy HI(CHEOPS_TEXT)
                     jsr DRAW_TEXT
 .L1034              jsr RAND
                     and #$03
@@ -276,8 +377,8 @@ ROOMS_VISITED = $0380
                     bne L107d
                     lda #$0f
                     ldx #$00
-                    jsr $fff4
-.L10a5              jsr $ffe0
+                    jsr osbyte
+.L10a5              jsr osrdch
                     sec
                     sbc #$31
                     bcc L10a5
@@ -299,7 +400,7 @@ ROOMS_VISITED = $0380
                     adc $86
                     adc #$18
                     sta $86
-                    jsr S0f17
+                    jsr PLAY_SHRILL_NOISE
                     lda #$32
                     sta $88
                     lda #$00
@@ -307,7 +408,7 @@ ROOMS_VISITED = $0380
 .L10d6              
                     ; Wait for vsync (*FX 19)
                     lda #$13
-                    jsr $fff4
+                    jsr osbyte
                     lda $86
                     sta $8e
                     lda #$76
@@ -326,7 +427,7 @@ ROOMS_VISITED = $0380
                     iny
                     sta ($53),y
                     rts
-                    
+.L10fc  ; this data gets overwritten by code in 7f00
                     EQUB $07, $17, $47, $57, $27, $37, $67, $77 
                     EQUB $87, $97, $c7, $d7, $a7, $b7, $e7, $f7 
                     EQUB $07, $17, $47, $57, $26, $36, $66, $76 
@@ -477,7 +578,7 @@ ROOMS_VISITED = $0380
 
 
                     lda #$00
-                    sta $72
+                    sta zBLOB_FRAME
                     sta $22
                     sta zCORE_ITEMS_FOUND
                     lda #$01
@@ -625,7 +726,7 @@ ROOMS_VISITED = $0380
                     lda $5b
                     sta zBLOB_HI
                     lda $5c
-                    sta $72
+                    sta zBLOB_FRAME
                     lda $5d
                     sta $76
                     sed
@@ -840,7 +941,7 @@ ROOMS_VISITED = $0380
                     bne L1473
                     jsr S3563
                     lda #$00
-                    ldx #zGRAVITY_INDEX
+                    ldx #$73
                     jsr S3587
                     jsr $7f00
                     lda #$00
@@ -874,9 +975,9 @@ ROOMS_VISITED = $0380
                     sta $81
                     ldx #$34
                     ldy #$60
-                    jsr S353d
+                    jsr PLAY_SOUND
                     lda #$00
-                    ldx #zGRAVITY_INDEX
+                    ldx #$73
                     jsr S3593
                     jsr S23d4
                     lda #$07
@@ -968,13 +1069,13 @@ ROOMS_VISITED = $0380
 
                     ; Wait for vsync (*FX 19)
                     lda #$13
-                    jsr $fff4
+                    jsr osbyte
                     lda $603e
                     eor #$f1
                     sta $603e
                     ldx #$3c
                     ldy #$60
-                    jsr S353d
+                    jsr PLAY_SOUND
                     lda #$00
                     jsr S2eb6
                     pla
@@ -983,7 +1084,7 @@ ROOMS_VISITED = $0380
                     bne L158f
                     jsr $7f00
                     lda #$00
-                    ldx #zGRAVITY_INDEX
+                    ldx #$73
                     jsr S3593
                     lda #$08
                     sta $8e
@@ -1044,7 +1145,7 @@ ROOMS_VISITED = $0380
                     bcc L1666
                     lda #$80
                     ldx #$01
-                    jsr $fff4
+                    jsr osbyte
                     ldx #$00
                     cpy #$38
                     bcs L1639
@@ -1055,7 +1156,7 @@ ROOMS_VISITED = $0380
 .L163f               stx $80
                     lda #$80
                     ldx #$02
-                    jsr $fff4
+                    jsr osbyte
                     lda $80
                     cpy #$38
                     bcs L1650
@@ -1066,7 +1167,7 @@ ROOMS_VISITED = $0380
 .L1656               sta $80
                     lda #$80
                     ldx #$00
-                    jsr $fff4
+                    jsr osbyte
                     txa
                     and #$03
                     beq L16af
@@ -1139,7 +1240,7 @@ ROOMS_VISITED = $0380
                     dex
                     bne L16d7
                     beq L16fb
-.L16ef               lda $72
+.L16ef              lda zBLOB_FRAME
                     and #$03
                     bne L16fb
                     lda $f8
@@ -1196,14 +1297,14 @@ ROOMS_VISITED = $0380
                     bne L176d
                     ldx #$54
                     ldy #$60
-                    jsr S353d
+                    jsr PLAY_SOUND
                     jmp L176d
                     
 .L1762               lda $45
                     beq L176d
                     ldx #$d1
                     ldy #$20
-                    jsr S353d
+                    jsr PLAY_SOUND
 .L176d               lda $0240
                     cmp $50
                     beq L176d
@@ -1225,10 +1326,10 @@ ROOMS_VISITED = $0380
                     beq L179a
                     lda #$01
                     sta $76
-.L179a               dec $72
-                    lda $72
+.L179a              dec zBLOB_FRAME
+                    lda zBLOB_FRAME
                     and #$07
-                    sta $72
+                    sta zBLOB_FRAME
                     and #$03
                     cmp #$03
                     bne L17b1
@@ -1254,11 +1355,11 @@ ROOMS_VISITED = $0380
                     lda #$01
                     sta $76
 .L17cd               clc
-                    lda $72
+                    lda zBLOB_FRAME
                     and #$07
                     adc #$01
                     ora #$08
-                    sta $72
+                    sta zBLOB_FRAME
                     and #$03
                     bne L17e4
 
@@ -1289,7 +1390,7 @@ ROOMS_VISITED = $0380
                     sbc #$00
                     sta $8d
                     ldy #$02
-                    lda $72
+                    lda zBLOB_FRAME
                     and #$03
                     bne L1814
                     dey
@@ -1306,12 +1407,12 @@ ROOMS_VISITED = $0380
                     lda $f8
                     ora #$04
                     sta $f8
-.L182c               ldy #$22
-                    lda $72
+.L182c              ldy #$22
+                    lda zBLOB_FRAME
                     and #$03
                     bne L1835
                     dey
-.L1835               lda ($8e),y
+.L1835              lda ($8e),y
                     and #$08
                     bne L1843
                     dey
@@ -1319,10 +1420,10 @@ ROOMS_VISITED = $0380
                     bne L1835
                     jmp L1849
                     
-.L1843               lda $f8
+.L1843              lda $f8
                     ora #$08
                     sta $f8
-.L1849               lda $f8
+.L1849              lda $f8
                     and #$04
                     bne L1884
                     lda $80
@@ -1416,7 +1517,7 @@ ROOMS_VISITED = $0380
 .L18f4              dey
                     jsr S65e0
                     ldy #$02
-                    lda $72
+                    lda zBLOB_FRAME
                     and #$03
                     bne L1901
                     dey
@@ -1427,7 +1528,7 @@ ROOMS_VISITED = $0380
                     bpl L1901
                     lda zGRAVITY_INDEX
                     beq L1926
-                    lda $71
+                    lda zBLOB_HI
                     cmp #$7c
                     bcc L1926
                     bcs L191a
@@ -1457,13 +1558,13 @@ ROOMS_VISITED = $0380
                     sta $75
 .L1946               ldx $8e
                     clc
-                    lda $72
+                    lda zBLOB_FRAME
                     and #$02
                     beq L1954
                     txa
                     adc #$08
                     sta $8e
-.L1954               lda $71
+.L1954              lda zBLOB_HI
                     adc #$02
                     sty $6d
                     tay
@@ -1507,7 +1608,7 @@ ROOMS_VISITED = $0380
                     dec $3d
 .L19a8              ldx #$5c
                     ldy #$60
-                    jsr S353d
+                    jsr PLAY_SOUND
 .L19af              lda $80
                     and #$10
                     beq L1a04
@@ -1543,7 +1644,7 @@ ROOMS_VISITED = $0380
                     lda $76
                     beq L19f9
                     ldx #$81
-                    lda $72
+                    lda zBLOB_FRAME
                     and #$08
                     beq L19f9
                     ldx #$82
@@ -1640,7 +1741,7 @@ ROOMS_VISITED = $0380
                     sta zGRAVITY_INDEX
 .L1ab4              lda #$00
                     sta $77
-                    lda $72
+                    lda zBLOB_FRAME
                     and #$03
                     bne L1add
                     lda zBLOB_LO
@@ -1667,14 +1768,14 @@ ROOMS_VISITED = $0380
                     clc
                     adc #$02
                     sta $8f
-                    lda #$20
+                    lda LO(HOVERPAD)
                     sta $8c
-                    lda #$41
+                    lda HI(HOVERPAD)
                     sta $8d
                     ldx #$02
                     ldy #$01
-                    jsr S65ad
-.L1afd              lda $72
+                    jsr DRAW_SIMPLE
+.L1afd              lda zBLOB_FRAME
                     and #$03
                     bne L1b63
                     sec
@@ -1780,7 +1881,7 @@ ROOMS_VISITED = $0380
 
 .L1bb6              jmp L1321
                     
-.L1bb9              lda $72
+.L1bb9              lda zBLOB_FRAME
                     and #$03
                     cmp #$03
                     bne L1be0
@@ -1791,16 +1892,16 @@ ROOMS_VISITED = $0380
                     lda zBLOB_LO
                     and #$07
                     sta zBLOB_LO
-                    lda $72
+                    lda zBLOB_FRAME
                     and #$f8
                     ora #$01
-                    sta $72
+                    sta zBLOB_FRAME
                     inc zROOM_LO
                     bne L1bdd
                     inc zROOM_HI
 .L1bdd              jmp L1321
                     
-.L1be0              lda $72
+.L1be0              lda zBLOB_FRAME
                     and #$03
                     bne L1c0a
                     lda $74
@@ -1810,10 +1911,10 @@ ROOMS_VISITED = $0380
                     and #$07
                     ora #$e8
                     sta zBLOB_LO
-                    lda $72
+                    lda zBLOB_FRAME
                     and #$f8
                     ora #$02
-                    sta $72
+                    sta zBLOB_FRAME
                     sec
                     lda zROOM_LO
                     sbc #$01
@@ -1873,7 +1974,7 @@ ROOMS_VISITED = $0380
                     lda $000f,y
                     cmp #$09
                     bne L1c65
-                    jsr S102a
+                    jsr SHOW_CHEOPS_SCREEN
                     jmp L131b
                     
 .L1c75               clc
@@ -1938,7 +2039,7 @@ ROOMS_VISITED = $0380
                     iny
                     sta ($53),y
                     sta $59
-                    jsr S0e24
+                    jsr PLAY_TCHONK_SOUND
 .L1cec               sec
                     lda $3a
                     sbc #$01
@@ -1959,11 +2060,14 @@ ROOMS_VISITED = $0380
 
                     ; Wait for vsync (*FX 19)
                     lda #$13
-                    jsr $fff4
-                    jsr S0e2b
+                    jsr osbyte
+
+                    ; Go to the teleport screen
+                    jsr SHOW_TELEPORT_SCREEN
+
                     jmp L1321
                     
-.L1d19              lda $72
+.L1d19              lda zBLOB_FRAME
                     and #$03
                     bne L1d4e
                     lda zBLOB_LO
@@ -1978,13 +2082,13 @@ ROOMS_VISITED = $0380
                     sta zBLOB_HI
                     lda $4b
                     sta zROOM_LO
-                    lda $72
+                    lda zBLOB_FRAME
                     and #$fc
                     ora $4a
-                    sta $72
+                    sta zBLOB_FRAME
                     ldx #$19
                     ldy #$25
-                    jsr L352b
+                    jsr PLAY_SOUND_WITH_ENV
                     lda #$0a
                     jsr S3542
                     jmp L1321
@@ -1999,7 +2103,7 @@ ROOMS_VISITED = $0380
                     adc #$20
                     cmp $0d
                     bne L1d90
-.L1d60              lda $72
+.L1d60              lda zBLOB_FRAME
                     and #$03
                     bne L1d90
                     ldy #$04
@@ -2011,7 +2115,7 @@ ROOMS_VISITED = $0380
                     jsr FLUSH_BUFFERS
                     ldx #$fb
                     ldy #$24
-                    jsr L352b
+                    jsr PLAY_SOUND_WITH_ENV
                     lda #$11
                     jsr S3542
                     jsr S2366
@@ -2035,7 +2139,7 @@ ROOMS_VISITED = $0380
                     
 .L1da9              ldx #$11
                     ldy #$25
-                    jsr S353d
+                    jsr PLAY_SOUND
                     lda #$00
                     sta $8d
 .L1db4               ldx $8d
@@ -2121,7 +2225,7 @@ ROOMS_VISITED = $0380
 .L1e5d               lda $71
                     cmp $af
                     bne L1ed1
-                    lda $72
+                    lda zBLOB_FRAME
                     and #$03
                     bne L1ed1
                     lda zBLOB_LO
@@ -2147,17 +2251,17 @@ ROOMS_VISITED = $0380
                     bne L1e89
                     txa
                     pha
-                    lda $72
+                    lda zBLOB_FRAME
                     jsr S20d9
                     ldx #$50
                     ldy #$23
-                    jsr L352b
+                    jsr PLAY_SOUND_WITH_ENV
                     pla
                     tax
                     ldy $86
                     lda $00ac,y
                     sta zBLOB_LO
-                    stx $72
+                    stx zBLOB_FRAME
                     cpx #$03
                     bne L1eb5
                     sec
@@ -2189,7 +2293,7 @@ ROOMS_VISITED = $0380
                     bne L1eeb
                     ldy #$20
 .L1eeb              ldx #$01
-                    lda $72
+                    lda zBLOB_FRAME
                     and #$03
                     beq L1ef4
                     inx
@@ -2220,7 +2324,7 @@ ROOMS_VISITED = $0380
                     lda #$0c
 .L1f22               pha
                     jsr FLUSH_BUFFERS
-                    jsr S0f17
+                    jsr PLAY_SHRILL_NOISE
                     pla
                     asl a
                     asl a
@@ -2231,7 +2335,7 @@ ROOMS_VISITED = $0380
 
 .L1f35              ; Wait for vsync (*FX 19)
                     lda #$13
-                    jsr $fff4
+                    jsr osbyte
                     jsr S20d9
                     dec $86
                     bpl L1f35
@@ -2292,13 +2396,13 @@ ROOMS_VISITED = $0380
                     jsr FLUSH_BUFFERS
                     ldx #$43
                     ldy #$04
-                    jsr L352b
+                    jsr PLAY_SOUND_WITH_ENV
                     lda #$78
                     sta $69
 .L1fbc              
                     ; Wait for vsync (*FX 19)
                     lda #$13
-                    jsr $fff4
+                    jsr osbyte
                     lda #$00
                     jsr S2eb6
                     jsr S2045
@@ -2315,7 +2419,7 @@ ROOMS_VISITED = $0380
                     jsr S2094
                     bne L1ffb
                     jsr FLUSH_BUFFERS
-                    jsr $ffe0
+                    jsr osrdch
                     and #$5f
                     ldx #$00
                     cmp #$53
@@ -2325,7 +2429,7 @@ ROOMS_VISITED = $0380
                     bne L1ffb
 .L1ff4               ldy #$00
                     lda #$d2
-                    jsr $fff4
+                    jsr osbyte
 .L1ffb               ldy #$00
 .L1ffd               sty $8f
                     ldx $8f
@@ -2369,12 +2473,12 @@ ROOMS_VISITED = $0380
                     jsr S6461
                     jmp L62ad
                     
-.S204e               ldy #$02
-                    lda $72
+.S204e              ldy #$02
+                    lda zBLOB_FRAME
                     and #$03
                     bne L2057
                     dey
-.L2057               lda ($74),y
+.L2057              lda ($74),y
                     and #$0c
                     bne L2060
                     dey
@@ -2412,7 +2516,7 @@ ROOMS_VISITED = $0380
                     
 .S2094              lda #$81
                     ldy #$ff
-                    jsr $fff4
+                    jsr osbyte
                     cpx #$ff
                     rts
                     
@@ -2450,7 +2554,7 @@ ROOMS_VISITED = $0380
                     stx $8e
                     ldx zBLOB_HI
                     stx $8f
-                    lda $72
+                    lda zBLOB_FRAME
                     asl a
                     sta $8c
                     lsr a
@@ -2609,7 +2713,7 @@ ROOMS_VISITED = $0380
                     txa
                     tay
                     inx
-                    jmp S65ad
+                    jmp DRAW_SIMPLE
                     
 .S220f               lda $7d
                     bmi L221e
@@ -2771,7 +2875,7 @@ ROOMS_VISITED = $0380
                     jsr $0b79
                     ldx #$02
                     ldy #$03
-                    jsr S65ad
+                    jsr DRAW_SIMPLE
                     pla
                     tay
                     pla
@@ -2781,7 +2885,7 @@ ROOMS_VISITED = $0380
                     sty $8f
                     ldx #$03
                     ldy #$00
-.L23ae               lda ($8e),y
+.L23ae              lda ($8e),y
                     eor #$18
                     sta ($8e),y
                     iny
@@ -2795,21 +2899,21 @@ ROOMS_VISITED = $0380
                     sta $8e
                     bcc L23c7
                     inc $8f
-.L23c7               dex
+.L23c7              dex
                     bne L23ae
                     pla
                     tay
                     rts
                     
-.L23cd               iny
+.L23cd              iny
                     iny
                     cpy #$0a
                     bne L2368
                     rts
                     
-.S23d4               ldx #$04
+.S23d4              ldx #$04
                     ldy #$00
-.L23d8               dex
+.L23d8              dex
                     bmi L2435
                     lda $30,x
                     cmp zSCORE0,x
@@ -2945,7 +3049,7 @@ ROOMS_VISITED = $0380
                     cmp #$f0
                     bcc L24b5
                     ldy #$03
-.L24dd               lda $000f,y
+.L24dd              lda $000f,y
                     sta $0013,y
                     dey
                     bpl L24dd
@@ -2957,25 +3061,38 @@ ROOMS_VISITED = $0380
                     EQUB $00, $12, $00, $f6, $00, $32, $00, $01, $00, $04, $01, $00, $00, $00, $00, $00 
                     EQUB $00, $08, $ec, $ec, $ec, $7e, $5a, $10, $00, $04, $00, $04, $00, $04, $00
 
+; Convert game screen address into a room-contents address
+; In practice it's only ever called with Blob's address so 
+; there's an obvious saving there.
+;
+; Room content seem to be at $0440-?
+
+                    ; On entry X & Y are a screen memory address ($6D00-$7F00)
 .S252f              stx $8e
                     sty $8f
+
+                    ; Divide by 8
                     ldx #$03
 .L2535              lsr $8f
                     ror $8e
                     dex
                     bne L2535
+
+                    ; Upper byte
                     lda $8f
                     and #$03
                     ora #$04
                     sta $8f
+
+                    ; Add 
                     clc
                     lda $8e
                     adc #$40
-                    sta $8e
+                    sta $8e   ; unnecessary, callers use result in X
                     tax
                     lda $8f
                     adc #$00
-                    sta $8f
+                    sta $8f  ; unnecessary, callers use result in Y
                     tay
                     rts
                     
@@ -2990,7 +3107,7 @@ ROOMS_VISITED = $0380
                     sta $5a
                     lda zBLOB_HI
                     sta $5b
-                    lda $72
+                    lda zBLOB_FRAME
                     sta $5c
                     lda $76
                     sta $5d
@@ -2999,31 +3116,39 @@ ROOMS_VISITED = $0380
 .S2571              lda zBLOB_LO
                     and #$f8
                     sta $98
-                    lda $72
+                    lda zBLOB_FRAME
                     and #$03
                     sta $99
                     lda #$00
                     sta $45
                     rts
                     
+                    ; Fetch a byte of room data, mask off upper 2 bits
+                    ; NB: This is only called from one place
 .S2582              ldx $86
                     lda $0400,x
                     and #$3f
                     sta $8f
+
+                    ; Multiply by 6
                     asl a
                     adc $8f
                     asl a
                     sta $69
                     ldy #$00
-.L2593              ldx $69
+.L2593              
+                    ; Use the room byte * 6 as an index to get a byte from a piece of mystery data
+                    ldx $69
                     lda $5980,x
+
+                    ; Use lower nibble as an index into another piece of mystery data
                     and #$0f
                     tax
                     lda $2db5,x
                     sta ($80),y
                     iny
                     ldx $69
-                    lda $5980,x
+                    lda $5980,x ; // why not pha/pla here?
                     and #$f0
                     lsr a
                     lsr a
@@ -3076,7 +3201,7 @@ ROOMS_VISITED = $0380
 
                     ; Wait for vsync (*FX 19)
                     lda #$13
-                    jsr $fff4
+                    jsr osbyte
 
                     lda #$00
                     sta $93
@@ -3128,7 +3253,7 @@ ROOMS_VISITED = $0380
                     sta $2dad
                     ldx #$00
                     ldy #$02
-.L2654               lda ($80),y
+.L2654              lda ($80),y
                     and #$c0
                     asl a
                     rol a
@@ -3575,6 +3700,8 @@ ROOMS_VISITED = $0380
                     bne L29cf
                     lda #$94
                     sta $0425
+
+                    ; ($80) = $0580
 .L29cf              lda #$a0
                     sta $80
                     lda #$05
@@ -3649,7 +3776,7 @@ ROOMS_VISITED = $0380
                     lda #$6c
                     sta $8d
 
-                    ; Prepare for 2bpp draw
+                    ; Draw 2bpp object
 .L2a3a              ldx #$04
                     ldy #$03
                     jsr DRAW_OBJECT
@@ -3657,17 +3784,17 @@ ROOMS_VISITED = $0380
                     
                     ; Copy source address in $8c into LDA instructions in the draw loop
 .draw_mono_obj      lda $8d
-                    sta draw_mono_nib1 + 2
-                    sta draw_mono_nib2 + 2
+                    sta draw_mono_nibble1 + 2
+                    sta draw_mono_nibble2 + 2
                     lda $8c
-                    sta draw_mono_nib1 + 1
-                    sta draw_mono_nib2 + 1
+                    sta draw_mono_nibble1 + 1
+                    sta draw_mono_nibble2 + 1
 
                     ldx #$00
 .L2a56              ldy #$00
 
                     ; Unpack the first mono nibble into a 2bpp byte (4 screen pixels)
-.draw_mono_nib1     lda $7000,x
+.draw_mono_nibble1  lda $7000,x
                     and #$0f
                     sta $8d
                     asl a
@@ -3680,7 +3807,7 @@ ROOMS_VISITED = $0380
                     iny
 
                     ; Unpack and draw the second mono nibble
-.draw_mono_nib2     lda $7000,x
+.draw_mono_nibble2  lda $7000,x
                     and #$f0
                     sta $8d
                     lsr a
@@ -3694,7 +3821,7 @@ ROOMS_VISITED = $0380
                     inx
                     txa
                     and #$0f
-                    bne draw_mono_nib1
+                    bne draw_mono_nibble1
 
                     ; Add #$100 to the screen address in ($8e), i.e. move down a character row
                     inc $8f
@@ -3762,6 +3889,8 @@ ROOMS_VISITED = $0380
                     lda #$88
 .L2af6               sta ($8e),y
                     sec
+
+                    ; ($8C) = ($80) - 32
                     lda $80
                     sbc #$20
                     sta $8c
@@ -3803,28 +3932,31 @@ ROOMS_VISITED = $0380
                     ldx #$02
                     ldy #$01
                     jsr DRAW_OBJECT
-.L2b46               jsr S2582
+.L2b46              jsr S2582
                     inc $86
+
+                    ; Add 4 to ($80)
                     clc
                     lda $80
                     adc #$04
                     sta $80
                     bcc L2b56
                     inc $81
-.L2b56               clc
+.L2b56              clc
                     lda $82
                     adc #$20
                     sta $82
                     beq L2b62
-.L2b5f               jmp L29e3
+.L2b5f              jmp L29e3
                     
-.L2b62               clc
+                    ; ($80) += 64
+.L2b62              clc
                     lda $80
                     adc #$40
                     sta $80
                     bcc L2b6d
                     inc $81
-.L2b6d               clc
+.L2b6d              clc
                     lda $83
                     adc #$03
                     sta $83
@@ -4125,7 +4257,9 @@ ROOMS_VISITED = $0380
 
                     EQUB $00, $00, $00, $00, $00
 .L2db0
-                    EQUB $00, $01, $03, $06, $05, $00, $18, $40, $16, $19, $1e, $14, $10 
+                    EQUB $00, $01, $03, $06, $05, 
+.L2db5
+                    EQUB $00, $18, $40, $16, $19, $1e, $14, $10 
 
 .S2dbd              lda #$0f
                     sta $8d
@@ -4203,7 +4337,7 @@ ROOMS_VISITED = $0380
                     sta $018d,x
                     ldx #$4c
                     ldy #$60
-                    jsr S353d
+                    jsr PLAY_SOUND
                     dec $2f
                     lda LO(SPRITES)
                     sta $8c
@@ -4211,7 +4345,7 @@ ROOMS_VISITED = $0380
                     sta $8d
                     ldx #$03
                     ldy #$02
-                    jmp S65ad
+                    jmp DRAW_SIMPLE
                     
 .S2e76               jsr RAND
                     ldx $86
@@ -4745,7 +4879,7 @@ ROOMS_VISITED = $0380
                     jsr DRAW_TEXT
 
                     ; Wait for user to press a key
-                    jsr $ffe0
+                    jsr osrdch
 
 .handle_menu_keypress
                     ; If user pressed '0', start the game!
@@ -4788,7 +4922,7 @@ ROOMS_VISITED = $0380
                     lda #$81
                     sta keyboard_zx,y
                     jsr FLUSH_BUFFERS
-                    jsr S0e24
+                    jsr PLAY_TCHONK_SOUND
                     jmp wait_for_menu_key
                     
 .game_intro         
@@ -4825,15 +4959,15 @@ ROOMS_VISITED = $0380
                     EQUS "C.1987  BUBBLE  BUS" 
                     EQUB $82
                     EQUB $1f, $0e, $11 
-                    EQUS "0. START[GAME" 
+                    EQUS "0. START GAME" 
 .keyboard_zx
                     EQUB $81
                     EQUB $1f, $0e, $0d 
-                    EQUS "1. KEYBOARD[ZX:/"
+                    EQUS "1. KEYBOARD ZX:/"
 .keyboard_ud
                     EQUB $82
                     EQUB $1f, $0e, $0e 
-                    EQUS "2. KEYBOARD[U.D."
+                    EQUS "2. KEYBOARD U.D."
 .joystick
                     EQUB $82
                     EQUB $1f, $0e, $0f 
@@ -4843,7 +4977,7 @@ ROOMS_VISITED = $0380
 .GAME_OVER_TEXT
                     EQUB $1f, $18, $07
                     EQUB $83 
-                    EQUS "GAME[OVER"
+                    EQUS "GAME OVER"
                     EQUB $1f, $12, $12
                     EQUB $82 
                     EQUS "CORE" 
@@ -4856,15 +4990,15 @@ ROOMS_VISITED = $0380
                     EQUS "00"
                     EQUB $81
                     EQUB $1f, $14, $0a 
-                    EQUS "SCORE["
+                    EQUS "SCORE "
 .score_digits
                     EQUS "00000"
                     EQUB $1f, $04, $0c 
-                    EQUS "ADVENTURE  SCORE["
+                    EQUS "ADVENTURE  SCORE "
 .completed_digits
                     EQUS "00%"
                     EQUB $1f, $0b, $0e 
-                    EQUS "TIME  TAKEN["
+                    EQUS "TIME  TAKEN "
 .time_digits
                     EQUS "00:00" 
                     EQUB $0d
@@ -4872,17 +5006,17 @@ ROOMS_VISITED = $0380
 .GAME_COMPLETE_TEXT
                     EQUB $82 
                     EQUB $1f $08 $06 
-                    EQUS "THE[CORES[COMPLETE"
+                    EQUS "THE CORES COMPLETE"
                     EQUB $1f $02 $08 
-                    EQUS "BUT[HOW[ARE[YOU[GONNA"
+                    EQUS "BUT HOW ARE YOU GONNA"
                     EQUB $1f $04 $0a 
-                    EQUS "GET[HOME[WHEN[ONLY[A"
+                    EQUS "GET HOME WHEN ONLY A"
                     EQUB $1f $06 $0c 
-                    EQUS "THTUPID[LOONY[WOULD"
+                    EQUS "THTUPID LOONY WOULD"
                     EQUB $1f $06 $0e 
-                    EQUS "WANDER[THIS[FAR[OUT"
+                    EQUS "WANDER THIS FAR OUT"
                     EQUB $1f $12 $10 
-                    EQUS "IN[THE[GALAXY"
+                    EQUS "IN THE GALAXY"
                     EQUB $0d 
 
 
@@ -4944,13 +5078,13 @@ ROOMS_VISITED = $0380
                     ; SOUND using 8 byte block at SOUND_BLOCK ($3503)
                     ; It calls SOUND 3 times here, presumably there are 3 channels.
                     lda #$11
-                    sta SOUND_BLOCK
-.L34ce              ldx #$03
-                    ldy #$35
-                    lda #$07
+                    sta SOUND_BLOCK     ; set channel to 17
+.L34ce              ldx LO(SOUND_BLOCK)
+                    ldy HI(SOUND_BLOCK)
+                    lda #$07    ; "jsr PLAY_SOUND" here would have saved these 2 bytes
                     jsr osword
-                    inc SOUND_BLOCK
-                    inc SOUND_BLOCK+4
+                    inc SOUND_BLOCK   ; increment channel
+                    inc SOUND_BLOCK+4 ; increment pitch
                     lda SOUND_BLOCK
                     cmp #$14
                     bne L34ce
@@ -4959,12 +5093,12 @@ ROOMS_VISITED = $0380
 .key_test           lda #$81   ; INKEY
                     ldx #$00
                     ldy #$00
-                    jsr $fff4
+                    jsr osbyte
                     bcc tune_exit ; X holds ASCII code of pressed key
 
                     ; *FX 19 - wait for vsync (i.e. delay for 1/50th of a second)
                     lda #$13
-                    jsr $fff4
+                    jsr osbyte
 
                     ; Decrement note duration counter
                     dec $8b
@@ -5003,30 +5137,36 @@ ROOMS_VISITED = $0380
 ; Flush input and other h/w buffers : *FX 15,0
 .FLUSH_BUFFERS      lda #$0f
                     ldx #$00
-                    jmp $fff4
+                    jmp osbyte
                     
-.L352b              clc
-                    ; Add 14 to the address in XY and push it on the stack
+.PLAY_SOUND_WITH_ENV              
+                    ; Get address of SOUND data by adding 14 to the address in XY and pushing it on the stack
+                    clc
                     txa
                     adc #$0e
                     pha
                     tya
                     adc #$00
                     pha
+                    
                     ; ENVELOPE 
                     lda #$08
                     jsr osword
-                    ; SOUND
+
+                    ; Get SOUND value address from stack into XY
                     pla
                     tay
                     pla
                     tax
-.S353d              lda #$07
+                    ; fall through into the SOUND command
+
+                    ; XY points to 8 bytes of SOUND data, as per Advanced User Guide 9.9
+.PLAY_SOUND         lda #$07
                     jmp osword
                     
 .S3542              pha
                     lda #$13
-                    jsr $fff4
+                    jsr osbyte
                     pla
                     sec
                     sbc #$01
@@ -5321,6 +5461,7 @@ ROOMS_VISITED = $0380
                     43 8c 4c 0e 36 0a 33 3c 4f dc 4d e2 2d 54 24 56 
                     2c de 4d 3e 4a 50 4a 52 36 e2 38 c2 42 72 4e 74 
                     40 d2 23 74 33 
+.TELEPORTERS
                     EQUS "ROGAL" cc 1f 36 
                     EQUS "VILGA" cc 28 3a 
                     EQUS "TAMIS" cc 42 3a 
@@ -5576,7 +5717,7 @@ ROOMS_VISITED = $0380
                     cmp $0100,x
                     bcc L64cd
                     bne L64bc
-                    lda $72
+                    lda zBLOB_FRAME
                     and #$03
                     beq L64cd
 .L64bc              lda $0101,x
@@ -5756,30 +5897,39 @@ ROOMS_VISITED = $0380
                     rts
 }
 
-.S65ad              sty $8b
+; X and Y hold sprite size (in chars, ie multiples of 8)
+; ($8c) = address of sprite data (2bpp, like screen)
+; ($8e) = screen address to draw to
+
+; character-row-aligned draw, i.e. the simple case where each slice is a simple copy.
+.DRAW_SIMPLE        
+{                   sty $8b
+
+                    ; $8a = number of bytes per slice (i.e. X * 8)
                     txa
-                    asl a
+                    asl a     
                     asl a
                     asl a
                     sta $8a
-.L65b5              ldy $8a
+.draw_slice         ldy $8a
                     dey
-.L65b8              lda ($8e),y
+.draw_pixels        lda ($8e),y
                     eor ($8c),y
                     sta ($8e),y
                     dey
-                    bpl L65b8
+                    bpl draw_pixels
                     lda $8c
-                    adc $8a
+                    adc $8a   
                     sta $8c
                     lda $8d
                     adc #$00
                     sta $8d
                     inc $8f
                     dec $8b
-                    bne L65b5
+                    bne draw_slice
                     rts
-                    
+}
+
 .S65d4              ldy #$0f
 .L65d6              lda ($8e),y
                     eor ($8c),y
@@ -5788,6 +5938,7 @@ ROOMS_VISITED = $0380
                     bpl L65d6
                     rts
                     
+                    ; XY = 0x0400 + (XY/8)    clamped to 0x7FFF
 .S65e0              stx $6b
                     sty $6c
                     lsr $6c

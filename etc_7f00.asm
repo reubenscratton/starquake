@@ -1,16 +1,23 @@
                     org $7f00
 L7f00               jmp L7fb9
                     
-L7f03               lda #$6f
+.L7f03              
+                    ; Write EVENTV with $7f6f
+                    lda #$6f
                     sta $0220
                     lda #$7f
                     sta $0221
+
                     lda #$0e
                     ldx #$04
                     jsr $fff4
+
+                    ; Write IRQ2V (unless already written)
                     sei
-                    lda $0207
-                    bpl L7f2d
+                    lda $0207 
+                    bpl L7f2d  ; i.e. if not handled by ROM 
+
+                    ; Copy original IRQ2V 
                     sta $7ffe
                     lda $0206
                     sta $7ffd
@@ -21,6 +28,7 @@ L7f03               lda #$6f
 L7f2d               cli
                     rts
                     
+.IRQ2V 
 L7f2f               php
                     pha
                     txa
@@ -65,12 +73,15 @@ L7f6f               php
                     pha
                     tya
                     pha
+
+                    ; Palette
                     ldx #$00
 L7f7b               lda $10fc,x
-                    sta $fe21
+                    sta $fe21 ; SHEILA &21 
                     inx
                     cpx #$10
                     bne L7f7b
+
                     jsr L7f57
                     dec $23
                     lda $23
