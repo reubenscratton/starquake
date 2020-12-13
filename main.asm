@@ -23,6 +23,7 @@ osbyte = $fff4
 ; Zero-page
 zCOMPLETION_FRACTION = $0b
 zCOMPLETION_PERCENT = $0c
+zCORE = $17 ; $17=top left, $18=top middle  ... $1e=bottom middle, $1f = bottom right.  9 bytes of zero page - each byte is the item index of that core piece  
 zSCORE0 = $46
 zSCORE1 = $47
 zSCORE2 = $48
@@ -31,11 +32,18 @@ zBLOB_LO = $70
 zBLOB_HI = $71
 zBLOB_FRAME = $72 ; index of which Blob sprite is current. 0-7=left, 8-15=right
 zGRAVITY_INDEX = $73
+zBLOB_ROOMBUF_ADDR_LO = $74
+zBLOB_ROOMBUF_ADDR_HI = $75
+zHOVERPAD_FLAG = $76 ; 0=is on hoverpad, 1=not on hoverpad
 zROOM_LO = $7e
 zROOM_HI = $7f
 zCORE_ITEMS_FOUND = $9f
 
 ROOMS_VISITED = $0380
+
+; The current room contents are represented in a low-res buffer that has one byte per 4x2 pixels. It is used
+; for hit-testing at Blob moves around
+ROOM_BUFFER = $0440 (to be confirmed)
 
 ; Conventions:
 ;
@@ -427,14 +435,16 @@ ROOMS_VISITED = $0380
                     iny
                     sta ($53),y
                     rts
-.L10fc  ; this data gets overwritten by code in 7f00
+.L10fc  ; this data gets overwritten by code in 7f00. Think it's palette data.
                     EQUB $07, $17, $47, $57, $27, $37, $67, $77 
                     EQUB $87, $97, $c7, $d7, $a7, $b7, $e7, $f7 
                     EQUB $07, $17, $47, $57, $26, $36, $66, $76 
                     EQUB $85, $95, $c5, $d5, $a0, $b0, $e0, $f0 
 
-                    ; Clear a few bits in data...
-.S111c              ldy #$09
+.INIT_GAME          ; NB: Only called from one place.
+
+                    ; Reset bit 2 in 5 bytes of unknown data...
+                    ldy #$09
 .L111e              lda $61c3,y
                     and #$fd
                     sta $61c3,y
@@ -582,42 +592,60 @@ ROOMS_VISITED = $0380
                     sta $22
                     sta zCORE_ITEMS_FOUND
                     lda #$01
-                    sta $76
+                    sta zHOVERPAD_FLAG
                     sta $7a
-                    ldy #$0b
+
+                    ; Initialize zCORE to be all the original core graphics.
+                    ldy #11 ; index of first core item in ITEMS
 .L11ed              tya
-                    sta $000c,y
+                    sta (zCORE-11),y
                     iny
-                    cpy #$14
+                    cpy #20
                     bne L11ed
-                    lda #$04
+
+                    ; Replace 4 zCORE elements with randomly-chosen non-core bits (chips etc)
+                    lda #4
                     sta $8e
-.L11fa              jsr RAND
-                    cmp #$0a
-                    bcs L11fa
-                    adc #$14
-                    ldy #$08
-.L1205              cmp $0017,y
-                    beq L11fa
+
+.random_core_bit
+                    ; Choose a random non-core bit (item index range 20 to 29)
+                    jsr RAND
+                    cmp #10
+                    bcs random_core_bit
+                    adc #20
+
+                    ; If this bit is in the core already, choose again
+                    ldy #8
+.L1205              cmp zCORE,y
+                    beq random_core_bit
                     dey
                     bpl L1205
+
+                    ; Save the non-core bit we've selected
                     pha
-.L120e              jsr RAND
-                    cmp #$09
-                    bcs L120e
+
+                    ; Choose a random location in the core to place it
+.random_core_loc    jsr RAND
+                    cmp #9
+                    bcs random_core_loc
                     tax
-                    lda $17,x
-                    cmp #$14
-                    bcs L120e
+                    lda zCORE,x
+                    ; If this location already has a non-core item, try again
+                    cmp #20
+                    bcs random_core_loc
+
+                    ; Place the non-core item in the core
                     pla
-                    sta $17,x
+                    sta zCORE,x
                     dec $8e
-                    bpl L11fa
+                    bpl random_core_bit
+
+
                     lda #$00
                     sta $8c
                     sta $8d
                     sta $8b
-.L122b               jsr RAND
+.L122b              jsr RAND
                     and #$02
                     clc
                     adc $8c
@@ -657,7 +685,7 @@ ROOMS_VISITED = $0380
                     sta $052b,x
                     jmp L1288
                     
-.L1275               jsr RAND
+.L1275              jsr RAND
                     lda $9b
                     and #$1f
                     cmp #$13
@@ -666,7 +694,7 @@ ROOMS_VISITED = $0380
                     adc #$0b
                     ldx $8d
                     sta $052b,x
-.L1288               clc
+.L1288              clc
                     lda $8c
                     adc #$04
                     sta $8c
@@ -728,7 +756,7 @@ ROOMS_VISITED = $0380
                     lda $5c
                     sta zBLOB_FRAME
                     lda $5d
-                    sta $76
+                    sta zHOVERPAD_FLAG
                     sed
                     sec
                     lda zLIVES
@@ -816,9 +844,9 @@ ROOMS_VISITED = $0380
                     jsr S2571
                     ldx zBLOB_LO
                     ldy zBLOB_HI
-                    jsr S252f
-                    stx $74
-                    sty $75
+                    jsr SCREENADDR_TO_ROOMBUF_ADDR
+                    stx zBLOB_ROOMBUF_ADDR_LO
+                    sty zBLOB_ROOMBUF_ADDR_HI
                     lda #$00
                     sta zGRAVITY_INDEX
                     pla
@@ -1124,9 +1152,9 @@ ROOMS_VISITED = $0380
                     sta $45
                     lda $0240
                     sta $50
-.L1603               lda $76
+.L1603              lda zHOVERPAD_FLAG
                     sta $21
-                    jsr S2554
+                    jsr UPDATE_BLOBS_ROOMBUF_ADDR
                     lda $80
                     sta $81
                     and #$0f
@@ -1224,7 +1252,7 @@ ROOMS_VISITED = $0380
                     inx
 .L16ce               lda $77
                     bne L16d7
-                    lda $76
+                    lda zHOVERPAD_FLAG
                     bne L16d7
                     inx
 .L16d7               lda ($8c),y
@@ -1254,7 +1282,7 @@ ROOMS_VISITED = $0380
                     inx
 .L1706               lda $77
                     bne L170f
-                    lda $76
+                    lda zHOVERPAD_FLAG
                     bne L170f
                     inx
 .L170f               lda ($8e),y
@@ -1289,7 +1317,7 @@ ROOMS_VISITED = $0380
                     and #$07
                     bne L174c
                     dec $2e
-.L174c               lda $76
+.L174c              lda zHOVERPAD_FLAG
                     beq L176d
                     lda zGRAVITY_INDEX
                     beq L1762
@@ -1325,7 +1353,7 @@ ROOMS_VISITED = $0380
                     lda $77
                     beq L179a
                     lda #$01
-                    sta $76
+                    sta zHOVERPAD_FLAG
 .L179a              dec zBLOB_FRAME
                     lda zBLOB_FRAME
                     and #$07
@@ -1339,11 +1367,11 @@ ROOMS_VISITED = $0380
                     lda zBLOB_LO
                     sbc #$08
                     sta zBLOB_LO
-                    dec $74
-.L17b1               lda $22
+                    dec zBLOB_ROOMBUF_ADDR_LO
+.L17b1              lda $22
                     and #$fe
                     sta $22
-.L17b7               lda $f8
+.L17b7              lda $f8
                     and #$02
                     bne L17ea
                     lda $80
@@ -1353,8 +1381,8 @@ ROOMS_VISITED = $0380
                     lda $77
                     beq L17cd
                     lda #$01
-                    sta $76
-.L17cd               clc
+                    sta zHOVERPAD_FLAG
+.L17cd              clc
                     lda zBLOB_FRAME
                     and #$07
                     adc #$01
@@ -1367,21 +1395,21 @@ ROOMS_VISITED = $0380
                     lda zBLOB_LO
                     adc #$08
                     sta zBLOB_LO
-                    inc $74
-.L17e4               lda $22
+                    inc zBLOB_ROOMBUF_ADDR_LO
+.L17e4              lda $22
                     ora #$01
                     sta $22
-.L17ea               lda $76
+.L17ea              lda zHOVERPAD_FLAG
                     beq L17f1
-.L17ee               jmp L18af
+.L17ee              jmp L18af
                     
-.L17f1               lda $80
+.L17f1              lda $80
                     and #$0c
                     cmp #$0c
                     beq L17ee
                     ldx zBLOB_LO
                     ldy zBLOB_HI
-                    jsr S252f
+                    jsr SCREENADDR_TO_ROOMBUF_ADDR
                     sec
                     txa
                     sbc #$60
@@ -1443,13 +1471,15 @@ ROOMS_VISITED = $0380
                     sta zBLOB_LO
                     bcs L186f
                     dec zBLOB_HI
-.L186f               sec
-                    lda $74
+.L186f              
+                    ; Move Blob's room-content address up one row
+                    sec
+                    lda zBLOB_ROOMBUF_ADDR_LO
                     sbc #$20
-                    sta $74
+                    sta zBLOB_ROOMBUF_ADDR_LO
                     bcs L187a
-                    dec $75
-.L187a               jmp L188a
+                    dec zBLOB_ROOMBUF_ADDR_HI
+.L187a              jmp L188a
                     
 .L187d              dec zBLOB_LO
                     dec zBLOB_LO
@@ -1464,20 +1494,24 @@ ROOMS_VISITED = $0380
                     lda $80
                     and #$08
                     beq L18af
+
+                    ; Move blob down 2 pixel rows
                     lda #$02
-                    jsr S2061
+                    jsr MOVE_BLOB_DOWN
+
+                    ; Move blob's room address down one row
                     clc
-                    lda $74
+                    lda zBLOB_ROOMBUF_ADDR_LO
                     adc #$20
-                    sta $74
+                    sta zBLOB_ROOMBUF_ADDR_LO
                     bcc L18a6
-                    inc $75
+                    inc zBLOB_ROOMBUF_ADDR_HI
 .L18a6              jmp L18af
                     
 .L18a9              lda zBLOB_LO
                     and #$f8
                     sta zBLOB_LO
-.L18af               lda $76
+.L18af              lda zHOVERPAD_FLAG
                     beq L18c9
                     lda $9e
                     bne L18c9
@@ -1543,6 +1577,8 @@ ROOMS_VISITED = $0380
 .L1926              ldy #$00
                     jsr S20c2
                     bne L197f
+
+                    ; Is this a platform birth? Looks like it's moving Blob up a whole character row...
                     lda zBLOB_LO
                     and #$f8
                     sta $8e
@@ -1550,12 +1586,12 @@ ROOMS_VISITED = $0380
                     bne L1946
                     dec zBLOB_HI
                     sec
-                    lda $74
+                    lda zBLOB_ROOMBUF_ADDR_LO
                     sbc #$20
-                    sta $74
-                    lda $75
+                    sta zBLOB_ROOMBUF_ADDR_LO
+                    lda zBLOB_ROOMBUF_ADDR_HI
                     sbc #$00
-                    sta $75
+                    sta zBLOB_ROOMBUF_ADDR_HI
 .L1946               ldx $8e
                     clc
                     lda zBLOB_FRAME
@@ -1622,7 +1658,7 @@ ROOMS_VISITED = $0380
                     sta $3e
                     bcs L19c8
                     dec $3f
-.L19c8               lda $76
+.L19c8              lda zHOVERPAD_FLAG
                     eor #$01
                     sta $78
                     lda zBLOB_LO
@@ -1635,13 +1671,13 @@ ROOMS_VISITED = $0380
                     and #$04
                     beq L19e0
                     inx
-.L19e0               lda $76
+.L19e0              lda zHOVERPAD_FLAG
                     beq L19e5
                     inx
-.L19e5               stx $7d
+.L19e5              stx $7d
                     stx $8f
                     ldx $79
-                    lda $76
+                    lda zHOVERPAD_FLAG
                     beq L19f9
                     ldx #$81
                     lda zBLOB_FRAME
@@ -1653,20 +1689,21 @@ ROOMS_VISITED = $0380
                     ldy #$60
                     lda #$07
                     jsr osword
-.L1a04               lda $76
+.L1a04              lda zHOVERPAD_FLAG
                     bne L1a0b
                     jmp L1ab4
                     
 .L1a0b               jsr S204e
                     bmi L1a19
-                    lda ($74),y
+                    lda (zBLOB_ROOMBUF_ADDR_LO),y
                     and #$04
                     beq L1a19
                     jmp L1ab0
                     
+                    ; Fall!
 .L1a19              ldy zGRAVITY_INDEX
                     lda GRAVITY,y
-                    jsr S2061
+                    jsr MOVE_BLOB_DOWN
                     lda zGRAVITY_INDEX
                     cmp #$10
                     bcs L1a29
@@ -1675,22 +1712,22 @@ ROOMS_VISITED = $0380
                     bpl L1a31
 .L1a2e               jmp L1ab4
                     
-.L1a31               lda ($74),y
-                    and #$04
+.L1a31              lda (zBLOB_ROOMBUF_ADDR_LO),y
+                    and #$04                  ; lol, use BIT then u won't need a 3-byte LDA two lines down...
                     bne L1a2e
-                    lda ($74),y
+                    lda (zBLOB_ROOMBUF_ADDR_LO),y
                     and #$01
                     eor #$01
                     bne L1aaa
                     lda zGRAVITY_INDEX
                     cmp #$10
                     bmi L1aaa
-                    lda $74
+                    lda zBLOB_ROOMBUF_ADDR_LO
                     sta $8e
-                    lda $75
+                    lda zBLOB_ROOMBUF_ADDR_HI
                     sta $8f
                     sta $89
-.L1a4f               dec $8e
+.L1a4f              dec $8e
                     lda ($8e),y
                     and #$01
                     bne L1a4f
@@ -1757,9 +1794,9 @@ ROOMS_VISITED = $0380
                     and #$f8
                     sta zBLOB_LO
                     lda #$00
-                    sta $76
+                    sta zHOVERPAD_FLAG
                     jsr S2571
-.L1add               lda $76
+.L1add              lda zHOVERPAD_FLAG
                     cmp $21
                     beq L1afd
                     lda $64
@@ -1779,10 +1816,10 @@ ROOMS_VISITED = $0380
                     and #$03
                     bne L1b63
                     sec
-                    lda $74
-                    sbc #$61
+                    lda zBLOB_ROOMBUF_ADDR_LO
+                    sbc #$61  ; ???
                     sta $8c
-                    lda $75
+                    lda zBLOB_ROOMBUF_ADDR_HI
                     sbc #$00
                     sta $8d
                     ldy #$21
@@ -1829,7 +1866,7 @@ ROOMS_VISITED = $0380
                     bne L1b65
 .L1b63              lda #$00
 .L1b65              sta $9e
-                    lda $76
+                    lda zHOVERPAD_FLAG
                     beq L1b71
                     lda zBLOB_HI
                     cmp #$7d
@@ -1866,13 +1903,13 @@ ROOMS_VISITED = $0380
 
                     lda zBLOB_LO
                     and #$f8
-                    ora $76
+                    ora zHOVERPAD_FLAG
                     sta zBLOB_LO
                     lda #$07
                     sta $75
-                    sec
 
                     ; Move to the room above in the map
+                    sec
                     lda zROOM_LO
                     sbc #$10
                     sta zROOM_LO
@@ -1885,7 +1922,7 @@ ROOMS_VISITED = $0380
                     and #$03
                     cmp #$03
                     bne L1be0
-                    lda $74
+                    lda zBLOB_ROOMBUF_ADDR_LO
                     and #$1f
                     cmp #$1d
                     bne L1be0
@@ -1904,7 +1941,7 @@ ROOMS_VISITED = $0380
 .L1be0              lda zBLOB_FRAME
                     and #$03
                     bne L1c0a
-                    lda $74
+                    lda zBLOB_ROOMBUF_ADDR_LO
                     and #$1f
                     bne L1c0a
                     lda zBLOB_LO
@@ -1964,12 +2001,12 @@ ROOMS_VISITED = $0380
                     lda $80
                     and #$04
                     bne L1c5f
-.L1c5c               jmp L1cec
+.L1c5c              jmp L1cec
                     
-.L1c5f               lda $76
+.L1c5f              lda $zHOVERPAD_FLAG
                     beq L1c5c
                     ldy #$04
-.L1c65               dey
+.L1c65              dey
                     bmi L1c5c
                     lda $000f,y
                     cmp #$09
@@ -2124,7 +2161,7 @@ ROOMS_VISITED = $0380
                     sta $61c4,y
                     lda #$01
                     sta $0d
-.L1d90              lda $76
+.L1d90              lda zHOVERPAD_FLAG
                     beq L1da6
                     lda $80
                     and #$04
@@ -2279,13 +2316,13 @@ ROOMS_VISITED = $0380
                     bne L1eb9
                     jsr FLUSH_BUFFERS
                     jsr S20d9
-.L1ed1               jsr S2554
+.L1ed1              jsr UPDATE_BLOBS_ROOMBUF_ADDR
                     ldy #$40
                     sec
-                    lda $74
+                    lda zBLOB_ROOMBUF_ADDR_LO
                     sbc #$40
                     sta $8c
-                    lda $75
+                    lda zBLOB_ROOMBUF_ADDR_HI
                     sbc #$00
                     sta $8d
                     lda zBLOB_LO
@@ -2478,27 +2515,37 @@ ROOMS_VISITED = $0380
                     and #$03
                     bne L2057
                     dey
-.L2057              lda ($74),y
+.L2057              lda (zBLOB_ROOMBUF_ADDR_LO),y
                     and #$0c
                     bne L2060
                     dey
                     bpl L2057
 .L2060               rts
                     
-.S2061               sta $8e
+; Move Blob down by the number of pixel rows in A
+.MOVE_BLOB_DOWN            
+                    ; Stash the amount to move in a temporary variable  
+                    sta $8e
+
+                    ; Determine if this movement will cross a character row
                     lda zBLOB_LO
                     and #$07
                     clc
                     adc $8e
                     and #$08
-                    beq L2088
+                    beq L2088 ; branch if no
+                    
+                    ; Move blobs location in room data down a row
                     clc
-                    lda $74
+                    lda zBLOB_ROOMBUF_ADDR_LO
                     adc #$20
-                    sta $74
-                    lda $75
+                    sta zBLOB_ROOMBUF_ADDR_LO
+                    lda zBLOB_ROOMBUF_ADDR_HI
                     adc #$00
-                    sta $75
+                    sta zBLOB_ROOMBUF_ADDR_HI
+
+                    ; Move Blobs screen address down a character row (0x100 bytes) minus 8 cos
+                    ; that 8 is going to be added in a *second* addition.
                     clc
                     lda zBLOB_LO
                     adc #$f8
@@ -2506,6 +2553,9 @@ ROOMS_VISITED = $0380
                     lda zBLOB_HI
                     adc #$00
                     sta zBLOB_HI
+
+                    ; Move Blob's screen address down by the given amount without having to 
+                    ; worry about crossing a character row
 .L2088              clc
                     lda zBLOB_LO
                     adc $8e
@@ -2554,6 +2604,8 @@ ROOMS_VISITED = $0380
                     stx $8e
                     ldx zBLOB_HI
                     stx $8f
+
+                    ; ($8c) = ((zBLOB_FRAME * 3) + 8)
                     lda zBLOB_FRAME
                     asl a
                     sta $8c
@@ -2563,19 +2615,25 @@ ROOMS_VISITED = $0380
                     sta $8c
                     lda #$00
                     sta $8d
+
+                    ; ($8c) <<= 4
                     ldx #$04
-.L20f3               asl $8c
+.L20f3              asl $8c
                     rol $8d
                     dex
                     bne L20f3
+
+                    ; ($8c) += $3d00
                     lda $8d
                     adc #$3d
                     sta $8d
+
+                    ; Draw Blob!
                     ldx #$03
                     ldy #$02
                     jsr S6300
-                    lda $76
-                    bne L20d0
+                    lda zHOVERPAD_FLAG
+                    bne L20d0 ; // jump to a RTS
 
                     ; Draw the hoverpad
                     lda zBLOB_LO
@@ -3067,8 +3125,9 @@ ROOMS_VISITED = $0380
 ;
 ; Room content seem to be at $0440-?
 
+.SCREENADDR_TO_ROOMBUF_ADDR
                     ; On entry X & Y are a screen memory address ($6D00-$7F00)
-.S252f              stx $8e
+                    stx $8e
                     sty $8f
 
                     ; Divide by 8
@@ -3095,12 +3154,14 @@ ROOMS_VISITED = $0380
                     sta $8f  ; unnecessary, callers use result in Y
                     tay
                     rts
-                    
-.S2554              ldx zBLOB_LO
+
+.UPDATE_BLOBS_ROOMBUF_ADDR
+                    ; Update blobs room buffer address             
+                    ldx zBLOB_LO
                     ldy zBLOB_HI
-                    jsr S252f
-                    stx $74
-                    sty $75
+                    jsr SCREENADDR_TO_ROOMBUF_ADDR
+                    stx zBLOB_ROOMBUF_ADDR_LO
+                    sty zBLOB_ROOMBUF_ADDR_HI
                     rts
                     
 .S2560              lda zBLOB_LO
@@ -3109,7 +3170,7 @@ ROOMS_VISITED = $0380
                     sta $5b
                     lda zBLOB_FRAME
                     sta $5c
-                    lda $76
+                    lda zHOVERPAD_FLAG
                     sta $5d
                     rts
                     
@@ -3923,7 +3984,7 @@ ROOMS_VISITED = $0380
                     sta $64
                     sta $8e
                     inc $8f
-                    lda $76
+                    lda zHOVERPAD_FLAG
                     beq L2b46
                     lda LO(HOVERPAD)
                     sta $8c
@@ -4634,7 +4695,7 @@ ROOMS_VISITED = $0380
                     adc #$01
                     cmp $7d
                     bcc L30e7
-                    ldy $76
+                    ldy zHOVERPAD_FLAG
                     cpy #$01
                     sbc #$03
                     cmp $7d
@@ -4946,7 +5007,7 @@ ROOMS_VISITED = $0380
                     lda #$1b
                     sta $7f6a
 
-                    jsr S111c
+                    jsr INIT_GAME
                     jmp L31ee
 
 .MENU_TEXT 
@@ -5248,39 +5309,40 @@ ROOMS_VISITED = $0380
                     dey
                     bpl L35d6
                     rts
-                    
+       
                     ;org $35e0
+.ITEMS                  
                     cfgbmp(8, 16, 1bpp)
-                    incbmp("sprites/bonus_burger.bmp")
-                    incbmp("sprites/bonus_skull.bmp")
-                    incbmp("sprites/bonus_fire.bmp")
-                    incbmp("sprites/bonus_dunno.bmp")
-                    incbmp("sprites/bonus_platforms.bmp")
-                    incbmp("sprites/bonus_extra_life.bmp")
-                    incbmp("sprites/bonus_dunno2.bmp")
-                    incbmp("sprites/cheops_pyramid.bmp")
-                    incbmp("sprites/blank.bmp")
-                    incbmp("sprites/access_card.bmp")
-                    incbmp("sprites/key.bmp")
-                    incbmp("sprites/core_top_left.bmp")
-                    incbmp("sprites/core_top_mid.bmp")
-                    incbmp("sprites/core_top_right.bmp")
-                    incbmp("sprites/core_mid_left.bmp")
-                    incbmp("sprites/core_mid_mid.bmp")
-                    incbmp("sprites/core_mid_right.bmp")
-                    incbmp("sprites/core_bot_left.bmp")
-                    incbmp("sprites/core_bot_mid.bmp")
-                    incbmp("sprites/core_bot_right.bmp")
-                    incbmp("sprites/chip_1.bmp")
-                    incbmp("sprites/chip_2.bmp")
-                    incbmp("sprites/chip_unknown.bmp")
-                    incbmp("sprites/capacitor.bmp")
-                    incbmp("sprites/keyboard_legs.bmp")
-                    incbmp("sprites/aerial.bmp")
-                    incbmp("sprites/bulb.bmp")
-                    incbmp("sprites/floppy_disc.bmp")
-                    incbmp("sprites/spraycan.bmp")
-                    incbmp("sprites/aerosol.bmp")
+                    incbmp("graphics/items/00_bonus_burger.bmp")
+                    incbmp("graphics/items/01_bonus_skull.bmp")
+                    incbmp("graphics/items/02_bonus_fire.bmp")
+                    incbmp("graphics/items/03_bonus_dunno.bmp")
+                    incbmp("graphics/items/04_bonus_platforms.bmp")
+                    incbmp("graphics/items/05_bonus_extra_life.bmp")
+                    incbmp("graphics/items/06_bonus_dunno2.bmp")
+                    incbmp("graphics/items/07_cheops_pyramid.bmp")
+                    incbmp("graphics/items/08_blank.bmp")
+                    incbmp("graphics/items/09_access_card.bmp")
+                    incbmp("graphics/items/10_key.bmp")
+                    incbmp("graphics/items/11_core_top_left.bmp")
+                    incbmp("graphics/items/12_core_top_mid.bmp")
+                    incbmp("graphics/items/13_core_top_right.bmp")
+                    incbmp("graphics/items/14_core_mid_left.bmp")
+                    incbmp("graphics/items/15_core_mid_mid.bmp")
+                    incbmp("graphics/items/16_core_mid_right.bmp")
+                    incbmp("graphics/items/17_core_bot_left.bmp")
+                    incbmp("graphics/items/18_core_bot_mid.bmp")
+                    incbmp("graphics/items/19_core_bot_right.bmp")
+                    incbmp("graphics/items/20_chip_1.bmp")
+                    incbmp("graphics/items/21_chip_2.bmp")
+                    incbmp("graphics/items/22_chip_unknown.bmp")
+                    incbmp("graphics/items/23_capacitor.bmp")
+                    incbmp("graphics/items/24_keyboard_legs.bmp")
+                    incbmp("graphics/items/25_aerial.bmp")
+                    incbmp("graphics/items/26_bulb.bmp")
+                    incbmp("graphics/items/27_floppy_disc.bmp")
+                    incbmp("graphics/items/28_spraycan.bmp")
+                    incbmp("graphics/items/29_aerosol.bmp")
         
 .room_related_data ; $37C0 
                     19 a5 12 5a 5e e3 e4 dc 23 e2 53 1e e3 1e 4c 0b 
@@ -5454,7 +5516,12 @@ ROOMS_VISITED = $0380
                     4b ff 4b ff 4b de 49 cf 4b 9d 4b ae 4b d2 4b f2 
                     4b f1 4b b1 49 81 8a f8 4b f6 2b 77 33 55 22 ee 
                     cc aa 44 11 32 23 11 88 c4 4c 88 22 55 33 77 44 
-                    aa cc ee be 78 fc 88 c4 a9 e6 a9 e2 29 08 4e 28 
+                    aa cc ee 
+                    
+                    ; org $61c3
+                    be 78 fc 88 c4 a9 e6 a9 e2 29 
+                    ; org $61cd
+                    08 4e 28 
                     40 a8 2a b6 46 96 22 c6 46 c8 34 f6 38 b4 4d a6 
                     23 ec 02 de 2a 34 46 10 46 f6 25 f8 23 28 1b 3a 
                     0b 48 2a 6a 40 36 29 16 47 38 22 2a 46 a0 23 60 
@@ -5526,6 +5593,7 @@ ROOMS_VISITED = $0380
                     bne L62b1
                     rts
                     
+                    ; Only called from one place...
 .S6300              lda $8e
                     and #$07
                     sta $89
@@ -5542,7 +5610,7 @@ ROOMS_VISITED = $0380
                     jsr S65e0
                     ldx #$00
                     ldy #$00
-.L631c               lda ($6b),y
+.L631c              lda ($6b),y
                     and #$02
                     sta $01c8,x
                     inx
@@ -5559,7 +5627,7 @@ ROOMS_VISITED = $0380
                     bmi L631c
                     lda #$00
                     sta $87
-.L6339               ldy #$00
+.L6339              ldy #$00
                     sec
                     lda $8e
                     and #$07
@@ -5567,19 +5635,19 @@ ROOMS_VISITED = $0380
                     lda #$08
                     sbc $88
                     sta $88
-.L6348               ldx $87
+.L6348              ldx $87
                     lda $01c8,x
                     beq L6353
                     iny
                     jmp L635e
                     
-.L6353               lda ($8e),y
+.L6353              lda ($8e),y
                     eor ($8c),y
                     sta ($8e),y
                     iny
                     cpy $88
                     bne L6353
-.L635e               inc $87
+.L635e              inc $87
                     tya
                     clc
                     adc #$07
@@ -5600,7 +5668,7 @@ ROOMS_VISITED = $0380
                     lda $89
                     beq L63b8
                     ldy #$00
-.L6384               sec
+.L6384              sec
                     lda #$08
                     sbc $89
                     sta $88
@@ -5617,20 +5685,20 @@ ROOMS_VISITED = $0380
                     tay
                     jmp L63ac
                     
-.L63a0               lda ($8e),y
+.L63a0              lda ($8e),y
                     eor ($8c),y
                     sta ($8e),y
                     iny
                     tya
                     and #$07
                     bne L63a0
-.L63ac               inc $87
+.L63ac              inc $87
                     cpy $8a
                     bne L6384
                     dec $87
                     dec $87
                     dec $87
-.L63b8               clc
+.L63b8              clc
                     lda $8e
                     adc #$08
                     sta $8e
@@ -5642,11 +5710,11 @@ ROOMS_VISITED = $0380
                     sta $8c
                     bcc L63cf
                     inc $8d
-.L63cf               dec $8b
+.L63cf              dec $8b
                     beq L63d6
                     jmp L6339
                     
-.L63d6               rts
+.L63d6              rts
                     
                                          00 29 2c 2a 22 33 4c 34 42 
                     3d 2c 3e 22 9a 4c 9b 42 9d 48 9e 42 c2 44 c3 46 
