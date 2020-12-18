@@ -1,20 +1,18 @@
-        ORG $1200
-.start
-        INCLUDE "main.asm" ;INCBIN "main.bin" ; relocs to 0xE00
-        INCLUDE "etc_0900.asm" ; relocs to $900
-        INCBIN "etc_7F00.bin" ; relocs to  $7F00
-        INCBIN "etc_0440.bin" ; relocs to $440
+; *** Assemble everything at it's eventual execution address
 
-; Four protected regions:
-;
-; 0x1200-0x6FFF  =>  0x0E00-0x6BFF
-; 0x7000-0x72FF  =>  0x0900-0x0BFF
-; 0x7300-0x73FF  =>  0x7F00-0x7FFF
-; 0x7400-0x74E7  =>  0x0440-0x0527
+        org $0440
+        INCBIN "etc_0440.bin" 
+        org $0900
+        INCLUDE "etc_0900.asm" 
+        org $0e00
+        INCLUDE "main.asm"
+        org $7f00
+        INCBIN "etc_7F00.bin"
+
 
 ; *** Entry point of $.QUAKE2
-.entry
         ORG $74E8
+.RELOC_START
 
 ; *TAPE - select 1200 baud
         LDA     #$8C
@@ -104,6 +102,7 @@
         INY
         CPY     #$B0
         BNE     L7579
+
 
 ; Copy 0x75DA-0x75E2 to 0x0090-0x0097
         LDY     #$07
@@ -213,7 +212,20 @@ NEXT
 ; Last bytes of the file
         EQUB &FC,&14,0,0
 
-.end
+.RELOC_END
 
-SAVE "quake", start, end, entry
+; 0x1200-0x6FFF  =>  0x0E00-0x6BFF
+; 0x7000-0x72FF  =>  0x0900-0x0BFF
+; 0x7300-0x73FF  =>  0x7F00-0x7FFF
+; 0x7400-0x74E7  =>  0x0440-0x0527
+
+;COPYBLOCK start, end, dest
+COPYBLOCK $0900, $0C00, $7000-$400
+COPYBLOCK $7F00, $8000, $7300-$400
+COPYBLOCK $0440, $0528, $7400-$400
+COPYBLOCK RELOC_START, RELOC_END, RELOC_START-$400
+
+; SAVE "filename", start, end [, exec [, reload] ]
+SAVE "quake", $0E00, RELOC_END-$400, $74E8, $1200
+
 

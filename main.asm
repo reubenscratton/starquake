@@ -1,6 +1,6 @@
 MAPCHAR '-', 0
 MAPCHAR ' ', $5b
-MAPCHAR '·', $5d
+MAPCHAR '*', $5d
 MAPCHAR '.', $5e
 MAPCHAR '%', $60
 MAPCHAR '0', $61
@@ -15,12 +15,13 @@ MAPCHAR '8', $69
 MAPCHAR '9', $6A
 MAPCHAR ':', $6B
 MAPCHAR '/', $6C
+MAPCHAR '_', $6D
 
 osrdch = $ffe0
 osword = $fff1
 osbyte = $fff4
 
-; Zero-page
+; ** Zero-page **
 zCOMPLETION_FRACTION = $0b
 zCOMPLETION_PERCENT = $0c
 zCORE = $17 ; $17=top left, $18=top middle  ... $1e=bottom middle, $1f = bottom right.  9 bytes of zero page - each byte is the item index of that core piece  
@@ -28,6 +29,14 @@ zSCORE0 = $46
 zSCORE1 = $47
 zSCORE2 = $48
 zLIVES = $49
+
+; Hold's Blob's screen position etc at the point he entered the room
+zSAVED_BLOB_LO = $5a
+zSAVED_BLOB_HI = $5b
+zSAVED_BLOB_FRAME = $5c
+zSAVED_HOVERPAD_FLAG = $5d
+
+; Blob's screen address
 zBLOB_LO = $70
 zBLOB_HI = $71
 zBLOB_FRAME = $72 ; index of which Blob sprite is current. 0-7=left, 8-15=right
@@ -41,17 +50,14 @@ zCORE_ITEMS_FOUND = $9f
 
 ROOMS_VISITED = $0380
 
-; The current room contents are represented in a low-res buffer that has one byte per 4x2 pixels. It is used
-; for hit-testing at Blob moves around
-ROOM_BUFFER = $0440 (to be confirmed)
+; The current room contents are represented in a #LOw-res buffer that has one byte per 4x2 pixels. It is used
+; for #HIt-testing at Blob moves around
+;ROOM_BUFFER = $0440 (to be confirmed)
 
 ; Conventions:
 ;
-; .ALLCAPS   - for the start of logical units, e.g. subroutines
-; .lowercase - for labels within a logical unit, e.g. local branches 
-
-
-                    org $e00
+; .ALLCAPS   - for the start of #LOgical units, e.g. subroutines
+; .lowercase - for labels within a #LOgical unit, e.g. #LOcal branches 
 
                     ; The teleport and cheops screens use a random palette. This shared code
                     ; clears the screen and sets up the random palette.
@@ -81,8 +87,8 @@ ROOM_BUFFER = $0440 (to be confirmed)
                     jsr $7f00
 
                     ; "Tchonk" sound - used when you enter teleport and a couple of other places
-.PLAY_TCHONK_SOUND  ldx LO(TCHONK_SOUND)
-                    ldy HI(TCHONK_SOUND)
+.PLAY_TCHONK_SOUND  ldx #LO(TCHONK_SOUND)
+                    ldy #HI(TCHONK_SOUND)
                     jmp PLAY_SOUND_WITH_ENV
                     
 
@@ -90,7 +96,7 @@ ROOM_BUFFER = $0440 (to be confirmed)
                     ; Copy the code for the current teleport into the screen text buffer
                     ldx #$00
                     ldy $f5
-.L0e2f              lda (TELEPORTERS-8),y
+.L0e2f              lda TELEPORTERS-8,y
                     sta teleport_code,x
                     iny
                     inx
@@ -102,9 +108,9 @@ ROOM_BUFFER = $0440 (to be confirmed)
 
                     ; Draw a teleport on the screen
                     ; ($8c) = $6124 = Teleport graphic
-                    lda LO(TELEPORT)
+                    lda #LO(TELEPORT)
                     sta $8c
-                    lda HI(TELEPORT)
+                    lda #HI(TELEPORT)
                     sta $8d
                     lda #$d0
                     sta $8e
@@ -115,8 +121,8 @@ ROOM_BUFFER = $0440 (to be confirmed)
                     jsr DRAW_OBJECT
 
                     ; Draw text
-                    ldx LO(TELEPORT_TEXT)
-                    ldy HI(TELEPORT_TEXT)
+                    ldx #LO(TELEPORT_TEXT)
+                    ldy #HI(TELEPORT_TEXT)
                     jsr DRAW_TEXT
 
                     ; Initialize char-pressed index to 0
@@ -142,11 +148,11 @@ ROOM_BUFFER = $0440 (to be confirmed)
                     jsr DRAW_TEXT
 
                     ; Play a sound
-                    ldx LO(KEYPRESS_SOUND)
-                    ldy HI(KEYPRESS_SOUND)
+                    ldx #LO(KEYPRESS_SOUND)
+                    ldy #HI(KEYPRESS_SOUND)
                     jsr PLAY_SOUND
 
-                    ; Increment the char index, loop back if not reached 5 chars.
+                    ; Increment the char index, #LOop back if not reached 5 chars.
                     inc $86
                     lda $86
                     cmp #$05
@@ -176,7 +182,7 @@ ROOM_BUFFER = $0440 (to be confirmed)
                     ; 'teleport' to same place you're already in :-)
                     lda $f5 ; offset into TELEPORTERS of current teleport 
                     pha
-                    ldx LO(code_not_recognized_text)
+                    ldx #LO(code_not_recognized_text)
                     bne leave_teleport
 .matched_teleport_code
                     tya
@@ -185,13 +191,13 @@ ROOM_BUFFER = $0440 (to be confirmed)
                     ldx #$59
                     ldy #$04
                     jsr PLAY_SOUND_WITH_ENV
-                    ldx LO(now_teleporting_text)
+                    ldx #LO(now_teleporting_text)
 
 .leave_teleport     
                     ; Init counter to 213 (counter counts *up* to zero, so 42 frames at 50Hz)
                     lda #$d5  
                     sta $86
-                    stx $7e   ; save low byte of text message to show
+                    stx $7e   ; save #LOw byte of text message to show
 .flash_message      
                     ; Cycle the message text through all 4 colours
                     lda $86
@@ -209,7 +215,7 @@ ROOM_BUFFER = $0440 (to be confirmed)
                     lda #$13
                     jsr osbyte
                     
-                    ; Increment counter and loop back if not done
+                    ; Increment counter and #LOop back if not done
                     inc $86
                     bne flash_message
 
@@ -221,22 +227,22 @@ ROOM_BUFFER = $0440 (to be confirmed)
                     ;  RRRRRRRR | YYYYXXXR   where Y = Blob Y, X = Blob X, and R = room index (9 bits!)
 
                     ; Get the 4-bit Y, multiply it by 2 and add a screen page offset.
-                    lda (TELEPORTERS-8+7),y
+                    lda TELEPORTERS-8+7,y
                     lsr a
                     lsr a
                     lsr a
                     lsr a
                     sta $8e
 
-                    ; Multiply by 3 (each row of objects is 3 character rows high)
+                    ; Multiply by 3 (each row of objects is 3 character rows #HIgh)
                     asl a
                     adc $8e
                     adc #$6e;    // game screen starts at $6d00 iirc
                     sta zBLOB_HI
 
                     ; Get Blob's new X position from bits 1,2, and 3.
-                    lda (TELEPORTERS-8+7),y
-                    lsr a; lose bit 8 of the room index
+                    lda TELEPORTERS-8+7,y
+                    lsr a; #LOse bit 8 of the room index
 
                     ; Multiply by 32 (the width of a room object)
                     asl a
@@ -255,9 +261,9 @@ ROOM_BUFFER = $0440 (to be confirmed)
                     sta zBLOB_FRAME
 
                     ; Get 9-bit room address
-                    lda (TELEPORTERS-8+6),y
+                    lda TELEPORTERS-8+6,y
                     sta zROOM_LO
-                    lda (TELEPORTERS-8+7),y
+                    lda TELEPORTERS-8+7,y
                     and #$01
                     sta zROOM_HI
 .CLEAR_SCREEN_AND_FLUSH
@@ -267,8 +273,8 @@ ROOM_BUFFER = $0440 (to be confirmed)
 ; *** END OF TELEPORT CODE ****
 
 .PLAY_SHRILL_NOISE              
-                    ldx LO(SHRILL_NOISE)
-                    ldy HI(SHRILL_NOISE)
+                    ldx #LO(SHRILL_NOISE)
+                    ldy #HI(SHRILL_NOISE)
                     jmp PLAY_SOUND_WITH_ENV
 
 .KEYPRESS_SOUND
@@ -281,7 +287,7 @@ ROOM_BUFFER = $0440 (to be confirmed)
                     EQUS "TELEPORT"
                     EQUB $1f, $0a, $0b 
                     EQUS "CODE : " 
-                    EQUB $83, 
+                    EQUB $83
 .teleport_code
                     EQUS "(C)KP"    ; these chars are never seen, theyre a placeholder for the current teleport's code
                     EQUB $1f, $0c, $0e
@@ -290,11 +296,11 @@ ROOM_BUFFER = $0440 (to be confirmed)
                     EQUB $1f, $0c, $10 
                     EQUS "DESTINATION CODE" 
                     EQUB $1f, $1a, $13 
-                    EQUB $83, 
+                    EQUB $83
                     EQUS "_ _ _ _ _" 
                     EQUB $81, $1f, $1a, $13, $0d 
-                    EQUB $00, $00, $00, $00, $00, 
-.L0f95              EQUB $5b, $5b, $0d, 
+                    EQUB $00, $00, $00, $00, $00
+.L0f95              EQUB $5b, $5b, $0d
 .code_not_recognized_text
                     EQUB $81
                     EQUB $1f, $05, $15 
@@ -305,10 +311,10 @@ ROOM_BUFFER = $0440 (to be confirmed)
                     EQUB $81 
                     EQUB $1f, $0e, $15 
                     EQUS "NOW TELEPORTING" 
-                    EQUB $0d, 
+                    EQUB $0d
 .SHRILL_NOISE
                     ; Envelope
-                    EQUB $04, $01, $0a, $14, $1e, $01, $01, $01, $7e, $00, $00, $82, $7e, $7e, 
+                    EQUB $04, $01, $0a, $14, $1e, $01, $01, $01, $7e, $00, $00, $82, $7e, $7e
                     ; Sound
                     EQUB $11, $00, $04, $00, $c0, $00, $1e, $00
 
@@ -329,8 +335,8 @@ ROOM_BUFFER = $0440 (to be confirmed)
                     EQUB $02, $00, $04, $00, $78, $00, $02, $00
 
 .SHOW_CHEOPS_SCREEN jsr INIT_TEXT_SCREEN
-                    ldx LO(CHEOPS_TEXT)
-                    ldy HI(CHEOPS_TEXT)
+                    ldx #LO(CHEOPS_TEXT)
+                    ldy #HI(CHEOPS_TEXT)
                     jsr DRAW_TEXT
 .L1034              jsr RAND
                     and #$03
@@ -546,7 +552,7 @@ ROOM_BUFFER = $0440 (to be confirmed)
                     sta $8d
                     and #$3f 
                     cmp #$30
-                    bcs L116a ; if low 6 bits are 49-63, try again...
+                    bcs L116a ; if #LOw 6 bits are 49-63, try again...
 
                     sta $8c
                     txa
@@ -577,7 +583,7 @@ ROOM_BUFFER = $0440 (to be confirmed)
                     ldy #$01
                     sta ($88),y
 
-                    ; Advance ($88) by two bytes and loop back if we've not reached $0e00
+                    ; Advance ($88) by two bytes and #LOop back if we've not reached $0e00
                     inc $88
                     inc $88
                     bne L116a
@@ -598,7 +604,7 @@ ROOM_BUFFER = $0440 (to be confirmed)
                     ; Initialize zCORE to be all the original core graphics.
                     ldy #11 ; index of first core item in ITEMS
 .L11ed              tya
-                    sta (zCORE-11),y
+                    sta zCORE-11,y
                     iny
                     cpy #20
                     bne L11ed
@@ -624,13 +630,13 @@ ROOM_BUFFER = $0440 (to be confirmed)
                     ; Save the non-core bit we've selected
                     pha
 
-                    ; Choose a random location in the core to place it
+                    ; Choose a random #LOcation in the core to place it
 .random_core_loc    jsr RAND
                     cmp #9
                     bcs random_core_loc
                     tax
                     lda zCORE,x
-                    ; If this location already has a non-core item, try again
+                    ; If this #LOcation already has a non-core item, try again
                     cmp #20
                     bcs random_core_loc
 
@@ -749,21 +755,25 @@ ROOM_BUFFER = $0440 (to be confirmed)
                     lda #$ff
                     sta $3e
                     jsr S2560
-.L12ef              lda $5a
+.L12ef              
+                    ; Set Blob's screen position etc to whatever it was when he entered the room
+                    lda zSAVED_BLOB_LO
                     sta zBLOB_LO
-                    lda $5b
+                    lda zSAVED_BLOB_HI
                     sta zBLOB_HI
-                    lda $5c
+                    lda zSAVED_BLOB_FRAME
                     sta zBLOB_FRAME
-                    lda $5d
+                    lda zSAVED_HOVERPAD_FLAG
                     sta zHOVERPAD_FLAG
+
+                    ; Decrement the lives counter
                     sed
                     sec
                     lda zLIVES
                     sbc #$01
                     sta zLIVES
                     cld
-                    bcs L130b
+                    bcs L130b    ; SBC is weird... think this means if it *didn't* overflow
                     rts
                     
 .L130b              lda #$10
@@ -1001,8 +1011,8 @@ ROOM_BUFFER = $0440 (to be confirmed)
                     sta $000f,y
                     eor $83
                     sta $81
-                    ldx #$34
-                    ldy #$60
+                    ldx #LO(MISC_SOUND_0)
+                    ldy #HI(MISC_SOUND_0)
                     jsr PLAY_SOUND
                     lda #$00
                     ldx #$73
@@ -1098,12 +1108,17 @@ ROOM_BUFFER = $0440 (to be confirmed)
                     ; Wait for vsync (*FX 19)
                     lda #$13
                     jsr osbyte
-                    lda $603e
+
+                    ; Toggle the amplitude of a sound
+                    lda MISC_SOUND_1+2
                     eor #$f1
-                    sta $603e
-                    ldx #$3c
-                    ldy #$60
+                    sta MISC_SOUND_1+2
+
+                    ; Play the sound
+                    ldx #LO(MISC_SOUND_1)
+                    ldy #HI(MISC_SOUND_1)
                     jsr PLAY_SOUND
+
                     lda #$00
                     jsr S2eb6
                     pla
@@ -1323,8 +1338,8 @@ ROOM_BUFFER = $0440 (to be confirmed)
                     beq L1762
                     cmp #$01
                     bne L176d
-                    ldx #$54
-                    ldy #$60
+                    ldx #LO(MISC_SOUND_4)
+                    ldy #HI(MISC_SOUND_4)
                     jsr PLAY_SOUND
                     jmp L176d
                     
@@ -1578,7 +1593,7 @@ ROOM_BUFFER = $0440 (to be confirmed)
                     jsr S20c2
                     bne L197f
 
-                    ; Is this a platform birth? Looks like it's moving Blob up a whole character row...
+                    ; Is this a platform birth? #LOoks like it's moving Blob up a whole character row...
                     lda zBLOB_LO
                     and #$f8
                     sta $8e
@@ -1642,8 +1657,8 @@ ROOM_BUFFER = $0440 (to be confirmed)
                     sta $3c
                     bcs L19a8
                     dec $3d
-.L19a8              ldx #$5c
-                    ldy #$60
+.L19a8              ldx #LO(MISC_SOUND_5)
+                    ldy #HI(MISC_SOUND_5)
                     jsr PLAY_SOUND
 .L19af              lda $80
                     and #$10
@@ -1685,10 +1700,13 @@ ROOM_BUFFER = $0440 (to be confirmed)
                     beq L19f9
                     ldx #$82
 .L19f9               stx $7a
-                    ldx #$44
-                    ldy #$60
-                    lda #$07
+
+                    ; Play a sound
+                    ldx #LO(MISC_SOUND_2)
+                    ldy #HI(MISC_SOUND_2)
+                    lda #$07      ; calling PLAY_SOUND would save 2 bytes
                     jsr osword
+
 .L1a04              lda zHOVERPAD_FLAG
                     bne L1a0b
                     jmp L1ab4
@@ -1713,7 +1731,7 @@ ROOM_BUFFER = $0440 (to be confirmed)
 .L1a2e               jmp L1ab4
                     
 .L1a31              lda (zBLOB_ROOMBUF_ADDR_LO),y
-                    and #$04                  ; lol, use BIT then u won't need a 3-byte LDA two lines down...
+                    and #$04                  ; #LOl, use BIT then u won't need a 3-byte LDA two lines down...
                     bne L1a2e
                     lda (zBLOB_ROOMBUF_ADDR_LO),y
                     and #$01
@@ -1746,9 +1764,9 @@ ROOM_BUFFER = $0440 (to be confirmed)
                     lda $8f
                     ora #$60
                     sta $8f
-                    lda LO(SMASHTRAP)
+                    lda #LO(SMASHTRAP)
                     sta $8c
-                    lda HI(SMASHTRAP)
+                    lda #HI(SMASHTRAP)
                     sta $8d
                     ldx #$04
                     ldy #$01
@@ -1805,9 +1823,9 @@ ROOM_BUFFER = $0440 (to be confirmed)
                     clc
                     adc #$02
                     sta $8f
-                    lda LO(HOVERPAD)
+                    lda #LO(HOVERPAD)
                     sta $8c
-                    lda HI(HOVERPAD)
+                    lda #HI(HOVERPAD)
                     sta $8d
                     ldx #$02
                     ldy #$01
@@ -1897,7 +1915,7 @@ ROOM_BUFFER = $0440 (to be confirmed)
                     cmp #$6c
                     bne L1bb9
 
-                    ; ... relocate him to $7c00 (bottom of game screen)
+                    ; ... relocate #HIm to $7c00 (bottom of game screen)
                     lda #$7c
                     sta zBLOB_HI
 
@@ -2003,8 +2021,10 @@ ROOM_BUFFER = $0440 (to be confirmed)
                     bne L1c5f
 .L1c5c              jmp L1cec
                     
-.L1c5f              lda $zHOVERPAD_FLAG
+.L1c5f              lda zHOVERPAD_FLAG
                     beq L1c5c
+
+                    ; Check Blob's items collection for the Access Card?
                     ldy #$04
 .L1c65              dey
                     bmi L1c5c
@@ -2089,7 +2109,7 @@ ROOM_BUFFER = $0440 (to be confirmed)
                     sta $3b
 .L1cff               jsr S23d4
                     lda $f6
-                    cmp $zBLOB_LO
+                    cmp zBLOB_LO
                     bne L1d19
                     lda $f7
                     cmp zBLOB_HI
@@ -2143,15 +2163,19 @@ ROOM_BUFFER = $0440 (to be confirmed)
 .L1d60              lda zBLOB_FRAME
                     and #$03
                     bne L1d90
+
+                    ; Check Blob's items for the key (item index 10) ?
                     ldy #$04
 .L1d68              dey
                     bmi L1d90
                     lda $000f,y
-                    cmp #$0a
+                    cmp #10
                     bne L1d68
+
+                    ; Presumably this is opening the doorway
                     jsr FLUSH_BUFFERS
-                    ldx #$fb
-                    ldy #$24
+                    ldx #LO(DOOR_UNLOCK_SOUND)
+                    ldy #HI(DOOR_UNLOCK_SOUND)
                     jsr PLAY_SOUND_WITH_ENV
                     lda #$11
                     jsr S3542
@@ -2393,9 +2417,9 @@ ROOM_BUFFER = $0440 (to be confirmed)
                     sta $8f
 
                     ; Draw dervish ?
-                    lda LO(DERVISH)
+                    lda #LO(DERVISH)
                     sta $8c
-                    lda HI(DERVISH)
+                    lda #HI(DERVISH)
                     sta $8d
                     ldx #$03
                     ldy #$02
@@ -2535,7 +2559,7 @@ ROOM_BUFFER = $0440 (to be confirmed)
                     and #$08
                     beq L2088 ; branch if no
                     
-                    ; Move blobs location in room data down a row
+                    ; Move blobs #LOcation in room data down a row
                     clc
                     lda zBLOB_ROOMBUF_ADDR_LO
                     adc #$20
@@ -2582,7 +2606,7 @@ ROOM_BUFFER = $0440 (to be confirmed)
                     rts
                     
                     ; Got a feeling this data is Blob's gravity, i.e.
-                    ; what gets added to his Y position every frame 
+                    ; what gets added to #HIs Y position every frame 
                     ; he's unsupported.
 .GRAVITY
                     EQUB $01, $00, $01, $00, $01, $02, $01, $02 
@@ -2661,10 +2685,10 @@ ROOM_BUFFER = $0440 (to be confirmed)
                     asl $8c
                     rol $8d
                     lda $8c
-                    adc LO(HOVERPAD)
+                    adc #LO(HOVERPAD)
                     sta $8c
                     lda $8d
-                    adc HI(HOVERPAD)
+                    adc #HI(HOVERPAD)
                     sta $8d
                     ldx #$03
                     ldy #$01
@@ -3113,10 +3137,16 @@ ROOM_BUFFER = $0440 (to be confirmed)
                     bpl L24dd
                     rts
                     
-                    EQUB $00, $00, $00, $00, $00, $00, $00, $0d, 040 
-                    EQUB $88, $cc, $ee, $ff, $00, $ee, $ee, $ee, $00, $ff, $00, $04, $01, $fb, $f9, $f6 
-                    EQUB $04, $04, $04, $7e, $00, $00, $82, $7e, $7e, $12, $00, $04, $00, $64, $00, $07 
-                    EQUB $00, $12, $00, $f6, $00, $32, $00, $01, $00, $04, $01, $00, $00, $00, $00, $00 
+                    EQUB $00, $00, $00, $00, $00, $00, $00, $0d, $00 
+                    EQUB $88, $cc, $ee, $ff, $00, $ee, $ee, $ee, $00, $ff, $00
+
+.DOOR_UNLOCK_SOUND  ; org $24fb
+                    ; Envelope
+                    EQUB $04, $01, $fb, $f9, $f6, $04, $04, $04, $7e, $00, $00, $82, $7e, $7e
+                    ; Sound
+                    EQUB $12, $00, $04, $00, $64, $00, $07, $00
+
+                    EQUB $12, $00, $f6, $00, $32, $00, $01, $00, $04, $01, $00, $00, $00, $00, $00 
                     EQUB $00, $08, $ec, $ec, $ec, $7e, $5a, $10, $00, $04, $00, $04, $00, $04, $00
 
 ; Convert game screen address into a room-contents address
@@ -3202,7 +3232,7 @@ ROOM_BUFFER = $0440 (to be confirmed)
                     ldx $69
                     lda $5980,x
 
-                    ; Use lower nibble as an index into another piece of mystery data
+                    ; Use #LOwer nibble as an index into another piece of mystery data
                     and #$0f
                     tax
                     lda $2db5,x
@@ -3248,10 +3278,10 @@ ROOM_BUFFER = $0440 (to be confirmed)
                     asl $80
                     rol $81
                     lda $80
-                    adc LO(ROOM_DATA)
+                    adc #LO(ROOM_DATA)
                     sta $80
                     lda $81
-                    adc HI(ROOM_DATA)
+                    adc #HI(ROOM_DATA)
                     sta $81
                     rts
                     
@@ -3812,10 +3842,10 @@ ROOM_BUFFER = $0440 (to be confirmed)
                     ; Get object sprite address. Subtract 48 (the size of an object sprite) cos 
                     ; there is no sprite for index 0 - empty space.
                     lda $8c
-                    adc LO(OBJECT_SPRITES-48)
+                    adc #LO(OBJECT_SPRITES-48)
                     sta $8c
                     lda $8d
-                    adc HI(OBJECT_SPRITES-48)
+                    adc #HI(OBJECT_SPRITES-48)
                     sta $8d
 
                     ; Copy screen address to ($8e)
@@ -3843,7 +3873,7 @@ ROOM_BUFFER = $0440 (to be confirmed)
                     jsr DRAW_OBJECT
                     jmp L2a88
                     
-                    ; Copy source address in $8c into LDA instructions in the draw loop
+                    ; Copy source address in $8c into LDA instructions in the draw #LOop
 .draw_mono_obj      lda $8d
                     sta draw_mono_nibble1 + 2
                     sta draw_mono_nibble2 + 2
@@ -3986,9 +4016,9 @@ ROOM_BUFFER = $0440 (to be confirmed)
                     inc $8f
                     lda zHOVERPAD_FLAG
                     beq L2b46
-                    lda LO(HOVERPAD)
+                    lda #LO(HOVERPAD)
                     sta $8c
-                    lda HI(HOVERPAD)
+                    lda #HI(HOVERPAD)
                     sta $8d
                     ldx #$02
                     ldy #$01
@@ -4318,7 +4348,7 @@ ROOM_BUFFER = $0440 (to be confirmed)
 
                     EQUB $00, $00, $00, $00, $00
 .L2db0
-                    EQUB $00, $01, $03, $06, $05, 
+                    EQUB $00, $01, $03, $06, $05
 .L2db5
                     EQUB $00, $18, $40, $16, $19, $1e, $14, $10 
 
@@ -4396,13 +4426,13 @@ ROOM_BUFFER = $0440 (to be confirmed)
                     tay
                     lda $2e84,y
                     sta $018d,x
-                    ldx #$4c
-                    ldy #$60
+                    ldx #LO(MISC_SOUND_3)
+                    ldy #HI(MISC_SOUND_3)
                     jsr PLAY_SOUND
                     dec $2f
-                    lda LO(SPRITES)
+                    lda #LO(SPRITES)
                     sta $8c
-                    lda HI(SPRITES)
+                    lda #HI(SPRITES)
                     sta $8d
                     ldx #$03
                     ldy #$02
@@ -4664,7 +4694,7 @@ ROOM_BUFFER = $0440 (to be confirmed)
                     lda $2e7c,y
                     sta $018b,x
                     bne L309f
-                    07 07 03 
+                    EQUB $07, $07, $03 
 .L3090               jsr S2e76
                     lsr a
                     cmp #$03
@@ -4826,10 +4856,10 @@ ROOM_BUFFER = $0440 (to be confirmed)
                     asl $8c
                     rol $8d
                     lda $8c
-                    adc LO(SPRITES)
+                    adc #LO(SPRITES)
                     sta $8c
                     lda $8d
-                    adc HI(SPRITES)
+                    adc #HI(SPRITES)
                     sta $8d
                     ldx #$03
                     ldy #$02
@@ -4862,9 +4892,9 @@ ROOM_BUFFER = $0440 (to be confirmed)
                     plp
                     bcc L3245
 
-                    ; Show the game complete message: "only a thtupid loony" etc
-                    ldx LO(GAME_COMPLETE_TEXT)
-                    ldy HI(GAME_COMPLETE_TEXT)
+                    ; Show the game complete message: "only a thtupid #LOony" etc
+                    ldx #LO(GAME_COMPLETE_TEXT)
+                    ldy #HI(GAME_COMPLETE_TEXT)
                     jsr DRAW_TEXT
                     lda #$00
                     ldx #$79
@@ -4901,8 +4931,8 @@ ROOM_BUFFER = $0440 (to be confirmed)
 
                     ; Draw the GAME OVER text
                     jsr CLEAR_SCREEN
-                    ldx LO(GAME_OVER_TEXT)
-                    ldy HI(GAME_OVER_TEXT)
+                    ldx #LO(GAME_OVER_TEXT)
+                    ldy #HI(GAME_OVER_TEXT)
                     jsr DRAW_TEXT
                     lda #$40
                     ldx #$79
@@ -4919,8 +4949,8 @@ ROOM_BUFFER = $0440 (to be confirmed)
 .MAIN_MENU          
                     ; Clear the screen and draw the menu text
                     jsr CLEAR_SCREEN
-                    ldx LO(MENU_TEXT)
-                    ldy HI(MENU_TEXT)
+                    ldx #LO(MENU_TEXT)
+                    ldy #HI(MENU_TEXT)
                     jsr DRAW_TEXT
 
                     ; Play the intro tune
@@ -4935,8 +4965,8 @@ ROOM_BUFFER = $0440 (to be confirmed)
 .wait_for_menu_key  
                     ; Draw the "KEYBOARD ZX:/" label (and everything after it) again
                     ; cos the colour bytes might have changed
-                    ldx LO(keyboard_zx)
-                    ldy HI(keyboard_zx)
+                    ldx #LO(keyboard_zx)
+                    ldy #HI(keyboard_zx)
                     jsr DRAW_TEXT
 
                     ; Wait for user to press a key
@@ -5013,11 +5043,11 @@ ROOM_BUFFER = $0440 (to be confirmed)
 .MENU_TEXT 
                     EQUB $83
                     EQUB $1f, $0a, $0a 
-                    EQUS "S·T·A·R·Q·U·A·K·E" 
+                    EQUS "S*T*A*R*Q*U*A*K*E" 
                     EQUB $1f, $0f, $14 
-                    EQUS "BY  KENTON  PRICE" 
+                    EQUS "BY KENTON PRICE" 
                     EQUB $1f, $0b, $15 
-                    EQUS "C.1987  BUBBLE  BUS" 
+                    EQUS "C.1987 BUBBLE BUS" 
                     EQUB $82
                     EQUB $1f, $0e, $11 
                     EQUS "0. START GAME" 
@@ -5033,7 +5063,7 @@ ROOM_BUFFER = $0440 (to be confirmed)
                     EQUB $82
                     EQUB $1f, $0e, $0f 
                     EQUS "3. JOYSTICK"
-                    EQUB $0d
+                    EQUB $0d, $0d, $0d, $0d, $0d  ; extra $0d's to keep addresses same
 
 .GAME_OVER_TEXT
                     EQUB $1f, $18, $07
@@ -5066,17 +5096,17 @@ ROOM_BUFFER = $0440 (to be confirmed)
 
 .GAME_COMPLETE_TEXT
                     EQUB $82 
-                    EQUB $1f $08 $06 
+                    EQUB $1f, $08, $06 
                     EQUS "THE CORES COMPLETE"
-                    EQUB $1f $02 $08 
+                    EQUB $1f, $02, $08 
                     EQUS "BUT HOW ARE YOU GONNA"
-                    EQUB $1f $04 $0a 
+                    EQUB $1f, $04, $0a 
                     EQUS "GET HOME WHEN ONLY A"
-                    EQUB $1f $06 $0c 
+                    EQUB $1f, $06, $0c 
                     EQUS "THTUPID LOONY WOULD"
-                    EQUB $1f $06 $0e 
+                    EQUB $1f, $06, $0e 
                     EQUS "WANDER THIS FAR OUT"
-                    EQUB $1f $12 $10 
+                    EQUB $1f, $12, $10 
                     EQUS "IN THE GALAXY"
                     EQUB $0d 
 
@@ -5112,7 +5142,7 @@ ROOM_BUFFER = $0440 (to be confirmed)
 .tune_loop          ldx $8c
                     lda $047d,x
                     cmp #$ff
-                    beq L34fc
+                    beq tune_exit
                     pha
                     and #$1f
                     asl a
@@ -5140,8 +5170,8 @@ ROOM_BUFFER = $0440 (to be confirmed)
                     ; It calls SOUND 3 times here, presumably there are 3 channels.
                     lda #$11
                     sta SOUND_BLOCK     ; set channel to 17
-.L34ce              ldx LO(SOUND_BLOCK)
-                    ldy HI(SOUND_BLOCK)
+.L34ce              ldx #LO(SOUND_BLOCK)
+                    ldy #HI(SOUND_BLOCK)
                     lda #$07    ; "jsr PLAY_SOUND" here would have saved these 2 bytes
                     jsr osword
                     inc SOUND_BLOCK   ; increment channel
@@ -5259,9 +5289,9 @@ ROOM_BUFFER = $0440 (to be confirmed)
                     bpl L3565
                     rts
                     
-                    ; Possibly core bits? 2 lots of 9...
+                    ; Possibly core bits? 2 #LOts of 9...
 
-                    EQUB $f0, $0f, $f0, $0f, $f0, $0f, $f0, $0f, $f0, 
+                    EQUB $f0, $0f, $f0, $0f, $f0, $0f, $f0, $0f, $f0
                     EQUB $00, $00, $00, $00, $00, $00, $00, $00, $00 
 
 .S3587              pha
@@ -5311,241 +5341,253 @@ ROOM_BUFFER = $0440 (to be confirmed)
                     rts
        
                     ;org $35e0
-.ITEMS                  
-                    cfgbmp(8, 16, 1bpp)
-                    incbmp("graphics/items/00_bonus_burger.bmp")
-                    incbmp("graphics/items/01_bonus_skull.bmp")
-                    incbmp("graphics/items/02_bonus_fire.bmp")
-                    incbmp("graphics/items/03_bonus_dunno.bmp")
-                    incbmp("graphics/items/04_bonus_platforms.bmp")
-                    incbmp("graphics/items/05_bonus_extra_life.bmp")
-                    incbmp("graphics/items/06_bonus_dunno2.bmp")
-                    incbmp("graphics/items/07_cheops_pyramid.bmp")
-                    incbmp("graphics/items/08_blank.bmp")
-                    incbmp("graphics/items/09_access_card.bmp")
-                    incbmp("graphics/items/10_key.bmp")
-                    incbmp("graphics/items/11_core_top_left.bmp")
-                    incbmp("graphics/items/12_core_top_mid.bmp")
-                    incbmp("graphics/items/13_core_top_right.bmp")
-                    incbmp("graphics/items/14_core_mid_left.bmp")
-                    incbmp("graphics/items/15_core_mid_mid.bmp")
-                    incbmp("graphics/items/16_core_mid_right.bmp")
-                    incbmp("graphics/items/17_core_bot_left.bmp")
-                    incbmp("graphics/items/18_core_bot_mid.bmp")
-                    incbmp("graphics/items/19_core_bot_right.bmp")
-                    incbmp("graphics/items/20_chip_1.bmp")
-                    incbmp("graphics/items/21_chip_2.bmp")
-                    incbmp("graphics/items/22_chip_unknown.bmp")
-                    incbmp("graphics/items/23_capacitor.bmp")
-                    incbmp("graphics/items/24_keyboard_legs.bmp")
-                    incbmp("graphics/items/25_aerial.bmp")
-                    incbmp("graphics/items/26_bulb.bmp")
-                    incbmp("graphics/items/27_floppy_disc.bmp")
-                    incbmp("graphics/items/28_spraycan.bmp")
-                    incbmp("graphics/items/29_aerosol.bmp")
+.ITEMS              
+                    incbmp double_width:1 ; all bitmap assets are double width so they look right on the PC    
+                    incbmp width:8, height:16, bpp:1, path:"graphics/items/"
+                    incbmp "00_bonus_burger.bmp"
+                    incbmp "01_bonus_skull.bmp"
+                    incbmp "02_bonus_fire.bmp"
+                    incbmp "03_bonus_dunno.bmp"
+                    incbmp "04_bonus_platforms.bmp"
+                    incbmp "05_bonus_extra_life.bmp"
+                    incbmp "06_bonus_dunno2.bmp"
+                    incbmp "07_cheops_pyramid.bmp"
+                    incbmp "08_blank.bmp"
+                    incbmp "09_access_card.bmp"
+                    incbmp "10_key.bmp"
+                    incbmp "11_core_top_left.bmp"
+                    incbmp "12_core_top_mid.bmp"
+                    incbmp "13_core_top_right.bmp"
+                    incbmp "14_core_mid_left.bmp"
+                    incbmp "15_core_mid_mid.bmp"
+                    incbmp "16_core_mid_right.bmp"
+                    incbmp "17_core_bot_left.bmp"
+                    incbmp "18_core_bot_mid.bmp"
+                    incbmp "19_core_bot_right.bmp"
+                    incbmp "20_chip_1.bmp"
+                    incbmp "21_chip_2.bmp"
+                    incbmp "22_chip_unknown.bmp"
+                    incbmp "23_capacitor.bmp"
+                    incbmp "24_keyboard_legs.bmp"
+                    incbmp "25_aerial.bmp"
+                    incbmp "26_bulb.bmp"
+                    incbmp "27_floppy_disc.bmp"
+                    incbmp "28_spraycan.bmp"
+                    incbmp "29_aerosol.bmp"
         
 .room_related_data ; $37C0 
-                    19 a5 12 5a 5e e3 e4 dc 23 e2 53 1e e3 1e 4c 0b 
-                    66 a3 59 52 62 54 c9 1e 64 e4 0e 62 64 19 56 60 
-                    23 9a 1e 09 13 e2 1e c9 13 19 e4 e2 e4 14 e1 16 
-                    a5 20 1e 19 e4 a1 13 15 9d e2 15 21 0e 09 26 4a 
-                    21 e1 16 12 54 27 24 0d 3f 12 e2 e3 20 e2 21 1d 
-                    0e 1d 65 0a 21 0d 1b 26 51 e4 e2 12 0b 13 1e 16 
-                    27 05 1d 20 14 11 12 91 92 11 3f 4c 24 e2 e3 20 
-                    16 27 4c 05 1d a1 e4 1d 21 4a e2 1d d9 e3 0b 0a 
-                    14 e1 e1 14 e3 e1 15 54 e1 0e 20 95 20 e0 4b 12 
-                    12 1d 0d e1 20 56 22 12 27 1d 64 14 09 14 65 12 
-                    12 a5 12 11 e2 1a 64 21 0b 64 e2 e3 e0 11 da 65 
-                    27 16 09 10 16 25 60 21 e3 20 27 dc 16 51 9d 0d 
-                    1b 16 9d e4 1e 93 25 3f 11 16 15 66 66 5b 14 26 
-                    02 13 5a 0d 51 5e 23 25 0c e1 11 21 66 60 04 16 
-                    02 e2 16 e2 1b 16 1b 20 12 1d 0c 93 e1 62 e1 01 
-                    53 64 a3 5b e2 e3 60 1d e1 19 21 e4 9d 19 58 06 
-                    51 16 66 23 62 1b 1d 58 59 5e 5e 58 58 27 4c 11 
-                    11 1e e1 d0 27 e2 1f 21 1b 13 98 14 e2 e1 20 26 
-                    54 e0 a2 27 e2 27 54 15 1b 14 1d 1b 14 27 0a 1b 
-                    27 0a 1d 61 e2 e1 3f 05 51 0c 1c 27 1a 20 20 0d 
-                    e3 1d 14 e2 63 66 60 16 e2 ca 1a e2 60 e2 9c 16 
-                    1b e0 27 e2 e0 1d 15 9a 1d e4 04 27 15 27 20 42 
-                    1c 16 16 0b 12 0c 1b 16 11 21 21 12 e2 e1 e4 e2 
-                    27 41 53 26 06 19 a4 1e 16 1d 0a 27 9c 16 1b 19 
-                    0b a4 43 e3 e1 14 27 e2 63 1a 19 e1 27 e3 0b 06 
-                    e2 16 12 20 20 19 5c 27 20 12 11 16 11 e1 1d 01 
-                    27 1a 27 27 16 4b 09 27 27 20 43 19 66 5e e3 3f 
-                    12 19 59 4b 06 16 16 20 53 0c 05 15 15 1d 12 1d 
-                    09 1a e3 27 27 e1 e2 e1 e0 16 1d 0a e2 12 0d 24 
-                    61 65 21 1a 27 1a a0 1a 15 1d 12 1a 20 3f 62 20 
-                    27 66 14 ca e1 0d 66 27 e1 27 20 3f 12 21 3f 26 
-                    21 3f 27 a5 60 43 3f a4 21 26 26 e3 66 3f ca e1 
-.end-of-room_related_data
+                    EQUB $19, $a5, $12, $5a, $5e, $e3, $e4, $dc, $23, $e2, $53, $1e, $e3, $1e, $4c, $0b 
+                    EQUB $66, $a3, $59, $52, $62, $54, $c9, $1e, $64, $e4, $0e, $62, $64, $19, $56, $60 
+                    EQUB $23, $9a, $1e, $09, $13, $e2, $1e, $c9, $13, $19, $e4, $e2, $e4, $14, $e1, $16 
+                    EQUB $a5, $20, $1e, $19, $e4, $a1, $13, $15, $9d, $e2, $15, $21, $0e, $09, $26, $4a 
+                    EQUB $21, $e1, $16, $12, $54, $27, $24, $0d, $3f, $12, $e2, $e3, $20, $e2, $21, $1d 
+                    EQUB $0e, $1d, $65, $0a, $21, $0d, $1b, $26, $51, $e4, $e2, $12, $0b, $13, $1e, $16 
+                    EQUB $27, $05, $1d, $20, $14, $11, $12, $91, $92, $11, $3f, $4c, $24, $e2, $e3, $20 
+                    EQUB $16, $27, $4c, $05, $1d, $a1, $e4, $1d, $21, $4a, $e2, $1d, $d9, $e3, $0b, $0a 
+                    EQUB $14, $e1, $e1, $14, $e3, $e1, $15, $54, $e1, $0e, $20, $95, $20, $e0, $4b, $12 
+                    EQUB $12, $1d, $0d, $e1, $20, $56, $22, $12, $27, $1d, $64, $14, $09, $14, $65, $12 
+                    EQUB $12, $a5, $12, $11, $e2, $1a, $64, $21, $0b, $64, $e2, $e3, $e0, $11, $da, $65 
+                    EQUB $27, $16, $09, $10, $16, $25, $60, $21, $e3, $20, $27, $dc, $16, $51, $9d, $0d 
+                    EQUB $1b, $16, $9d, $e4, $1e, $93, $25, $3f, $11, $16, $15, $66, $66, $5b, $14, $26 
+                    EQUB $02, $13, $5a, $0d, $51, $5e, $23, $25, $0c, $e1, $11, $21, $66, $60, $04, $16 
+                    EQUB $02, $e2, $16, $e2, $1b, $16, $1b, $20, $12, $1d, $0c, $93, $e1, $62, $e1, $01 
+                    EQUB $53, $64, $a3, $5b, $e2, $e3, $60, $1d, $e1, $19, $21, $e4, $9d, $19, $58, $06 
+                    EQUB $51, $16, $66, $23, $62, $1b, $1d, $58, $59, $5e, $5e, $58, $58, $27, $4c, $11 
+                    EQUB $11, $1e, $e1, $d0, $27, $e2, $1f, $21, $1b, $13, $98, $14, $e2, $e1, $20, $26 
+                    EQUB $54, $e0, $a2, $27, $e2, $27, $54, $15, $1b, $14, $1d, $1b, $14, $27, $0a, $1b 
+                    EQUB $27, $0a, $1d, $61, $e2, $e1, $3f, $05, $51, $0c, $1c, $27, $1a, $20, $20, $0d 
+                    EQUB $e3, $1d, $14, $e2, $63, $66, $60, $16, $e2, $ca, $1a, $e2, $60, $e2, $9c, $16 
+                    EQUB $1b, $e0, $27, $e2, $e0, $1d, $15, $9a, $1d, $e4, $04, $27, $15, $27, $20, $42 
+                    EQUB $1c, $16, $16, $0b, $12, $0c, $1b, $16, $11, $21, $21, $12, $e2, $e1, $e4, $e2 
+                    EQUB $27, $41, $53, $26, $06, $19, $a4, $1e, $16, $1d, $0a, $27, $9c, $16, $1b, $19 
+                    EQUB $0b, $a4, $43, $e3, $e1, $14, $27, $e2, $63, $1a, $19, $e1, $27, $e3, $0b, $06 
+                    EQUB $e2, $16, $12, $20, $20, $19, $5c, $27, $20, $12, $11, $16, $11, $e1, $1d, $01 
+                    EQUB $27, $1a, $27, $27, $16, $4b, $09, $27, $27, $20, $43, $19, $66, $5e, $e3, $3f 
+                    EQUB $12, $19, $59, $4b, $06, $16, $16, $20, $53, $0c, $05, $15, $15, $1d, $12, $1d 
+                    EQUB $09, $1a, $e3, $27, $27, $e1, $e2, $e1, $e0, $16, $1d, $0a, $e2, $12, $0d, $24 
+                    EQUB $61, $65, $21, $1a, $27, $1a, $a0, $1a, $15, $1d, $12, $1a, $20, $3f, $62, $20 
+                    EQUB $27, $66, $14, $ca, $e1, $0d, $66, $27, $e1, $27, $20, $3f, $12, $21, $3f, $26 
+                    EQUB $21, $3f, $27, $a5, $60, $43, $3f, $a4, $21, $26, $26, $e3, $66, $3f, $ca, $e1 
 
 .SPRITES            ; org 0x39c0
-                    cfgbmp(12, 16, 2bpp)
-                    incbmp("sprites/alien_birth0.bmp")
-                    incbmp("sprites/alien_birth1.bmp")
-                    incbmp("sprites/alien_birth2.bmp")
-                    incbmp("sprites/alien_birth3.bmp")
-                    incbmp("sprites/alien_moth0.bmp")
-                    incbmp("sprites/alien_moth1.bmp")
-                    incbmp("sprites/alien_moth2.bmp")
-                    incbmp("sprites/alien_moth3.bmp")
-                    incbmp("sprites/alien_worm0.bmp")
-                    incbmp("sprites/alien_worm1.bmp")
-                    incbmp("sprites/alien_worm2.bmp")
-                    incbmp("sprites/alien_worm3.bmp")
+                    incbmp width:12, height:16, bpp:2, path:"graphics/sprites/", colour1:$00FFFF, colour2:$00FF00, colour3:$FFFFFF
+                    incbmp "alien_birth0.bmp"
+                    incbmp "alien_birth1.bmp"
+                    incbmp "alien_birth2.bmp"
+                    incbmp "alien_birth3.bmp"
+                    incbmp "alien_moth0.bmp"
+                    incbmp "alien_moth1.bmp"
+                    incbmp "alien_moth2.bmp"
+                    incbmp "alien_moth3.bmp"
+                    incbmp "alien_worm0.bmp"
+                    incbmp "alien_worm1.bmp"
+                    incbmp "alien_worm2.bmp"
+                    incbmp "alien_worm3.bmp"
 .DERVISH            ; org $3c00
-                    incbmp("sprites/dervish0.bmp") 
-                    incbmp("sprites/dervish1.bmp")
-                    incbmp("sprites/dervish2.bmp")
-                    incbmp("sprites/dervish3.bmp")
-                    incbmp("sprites/explosion0.bmp")
-                    incbmp("sprites/explosion1.bmp")
-                    incbmp("sprites/explosion2.bmp")
-                    incbmp("sprites/explosion3.bmp")
-                    incbmp("sprites/blob_left0.bmp")
-                    incbmp("sprites/blob_left1.bmp")
-                    incbmp("sprites/blob_left2.bmp")
-                    incbmp("sprites/blob_left3.bmp")
-                    incbmp("sprites/blob_left4.bmp")
-                    incbmp("sprites/blob_left5.bmp")
-                    incbmp("sprites/blob_left6.bmp")
-                    incbmp("sprites/blob_left7.bmp")
-                    incbmp("sprites/blob_right0.bmp")
-                    incbmp("sprites/blob_right1.bmp")
-                    incbmp("sprites/blob_right2.bmp")
-                    incbmp("sprites/blob_right3.bmp")
-                    incbmp("sprites/blob_right4.bmp")
-                    incbmp("sprites/blob_right5.bmp")
-                    incbmp("sprites/blob_right6.bmp")
-                    incbmp("sprites/blob_right7.bmp")
+                    incbmp "alien_dervish0.bmp"
+                    incbmp "alien_dervish1.bmp"
+                    incbmp "alien_dervish2.bmp"
+                    incbmp "alien_dervish3.bmp"
+                    incbmp "explosion0.bmp"
+                    incbmp "explosion1.bmp"
+                    incbmp "explosion2.bmp"
+                    incbmp "explosion3.bmp"
+                    incbmp "blob_left0.bmp"
+                    incbmp "blob_left1.bmp"
+                    incbmp "blob_left2.bmp"
+                    incbmp "blob_left3.bmp"
+                    incbmp "blob_left4.bmp"
+                    incbmp "blob_left5.bmp"
+                    incbmp "blob_left6.bmp"
+                    incbmp "blob_left7.bmp"
+                    incbmp "blob_right0.bmp"
+                    incbmp "blob_right1.bmp"
+                    incbmp "blob_right2.bmp"
+                    incbmp "blob_right3.bmp"
+                    incbmp "blob_right4.bmp"
+                    incbmp "blob_right5.bmp"
+                    incbmp "blob_right6.bmp"
+                    incbmp "blob_right7.bmp"
                     
                     ;org $4080
-                    00 00 44 00 00 00 88 11 00 00 22 00 00 00 44 00 
-                    00 00 00 11 00 00 00 00 00 00 88 00 22 00 00 00 
-                    00 88 00 00 44 00 22 00 00 33 00 88 00 88 00 00 
-                    00 44 99 00 00 11 00 00 00 00 11 00 00 00 11 88 
-                    00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 
-                    00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 
+                    EQUB $00, $00, $44, $00, $00, $00, $88, $11, $00, $00, $22, $00, $00, $00, $44, $00 
+                    EQUB $00, $00, $00, $11, $00, $00, $00, $00, $00, $00, $88, $00, $22, $00, $00, $00 
+                    EQUB $00, $88, $00, $00, $44, $00, $22, $00, $00, $33, $00, $88, $00, $88, $00, $00 
+                    EQUB $00, $44, $99, $00, $00, $11, $00, $00, $00, $00, $11, $00, $00, $00, $11, $88 
+                    EQUB $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00 
+                    EQUB $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00 
 
 .SMASHTRAP          ;org $40e0       
-                    incbmp("sprites/smashtrap.bmp", 16, 8, 2bpp);
+                    incbmp width:16, height:8, bpp:2, "smashtrap.bmp"
 .ZAP                ;org $4100
-                    incbmp("sprites/zap0.bmp", 8, 8, 2bpp);
-                    incbmp("sprites/zap1.bmp", 8, 8, 2bpp);
+                    incbmp width:8, height:8, bpp:2, "zap0.bmp"
+                    incbmp width:8, height:8, bpp:2, "zap1.bmp"
 .HOVERPAD
-                    incbmp("sprites/hoverpad0.bmp", 12, 8, 2bpp);
-                    incbmp("sprites/hoverpad1.bmp", 12, 8, 2bpp);
-                    incbmp("sprites/hoverpad2.bmp", 12, 8, 2bpp);
-                    incbmp("sprites/hoverpad3.bmp", 12, 8, 2bpp);
+                    incbmp width:12, height:8, bpp:2
+                    incbmp "hoverpad0.bmp"
+                    incbmp "hoverpad1.bmp"
+                    incbmp "hoverpad2.bmp"
+                    incbmp "hoverpad3.bmp"
 
 .ROOM_DATA          ; org $4180
                     INCBIN "rooms.bin" ; 6KB of room data, 12 bytes per room
                     
                     ; org $5980
-                    00 00 00 00 00 00 11 11 11 11 11 11 11 11 11 11 
-                    10 01 11 11 11 11 11 11 11 11 11 11 11 11 11 11 
-                    11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 
-                    11 11 11 11 11 11 71 17 11 11 11 11 11 44 00 00 
-                    00 00 01 10 01 10 01 10 00 00 00 00 10 01 11 00 
-                    11 00 11 00 00 00 10 11 11 11 00 00 01 00 11 11 
-                    11 11 11 11 11 11 00 00 20 02 20 02 00 22 00 22 
-                    00 10 65 56 35 53 35 53 65 56 33 33 33 33 65 56 
-                    33 53 33 53 65 56 35 33 35 33 11 11 33 33 33 33 
-                    11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 
-                    11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 
-                    11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 
-                    11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 
-                    11 11 11 11 00 11 00 11 11 11 11 00 11 00 11 11 
-                    00 11 00 11 
+                    EQUB $00, $00, $00, $00, $00, $00, $11, $11, $11, $11, $11, $11, $11, $11, $11, $11 
+                    EQUB $10, $01, $11, $11, $11, $11, $11, $11, $11, $11, $11, $11, $11, $11, $11, $11 
+                    EQUB $11, $11, $11, $11, $11, $11, $11, $11, $11, $11, $11, $11, $11, $11, $11, $11 
+                    EQUB $11, $11, $11, $11, $11, $11, $71, $17, $11, $11, $11, $11, $11, $44, $00, $00 
+                    EQUB $00, $00, $01, $10, $01, $10, $01, $10, $00, $00, $00, $00, $10, $01, $11, $00 
+                    EQUB $11, $00, $11, $00, $00, $00, $10, $11, $11, $11, $00, $00, $01, $00, $11, $11 
+                    EQUB $11, $11, $11, $11, $11, $11, $00, $00, $20, $02, $20, $02, $00, $22, $00, $22 
+                    EQUB $00, $10, $65, $56, $35, $53, $35, $53, $65, $56, $33, $33, $33, $33, $65, $56 
+                    EQUB $33, $53, $33, $53, $65, $56, $35, $33, $35, $33, $11, $11, $33, $33, $33, $33 
+                    EQUB $11, $11, $11, $11, $11, $11, $11, $11, $11, $11, $11, $11, $11, $11, $11, $11 
+                    EQUB $11, $11, $11, $11, $11, $11, $11, $11, $11, $11, $11, $11, $11, $11, $11, $11 
+                    EQUB $11, $11, $11, $11, $11, $11, $11, $11, $11, $11, $11, $11, $11, $11, $11, $11 
+                    EQUB $11, $11, $11, $11, $11, $11, $11, $11, $11, $11, $11, $11, $11, $11, $11, $11 
+                    EQUB $11, $11, $11, $11, $00, $11, $00, $11, $11, $11, $11, $00, $11, $00, $11, $11 
+                    EQUB $00, $11, $00, $11 
                     
 
                     ; org #$5a64 (calc uses #$5a34 cos item 0 is empty space)
 .OBJECT_SPRITES     ; these are monochrome, 48 bytes each
-
-                    ; TODO: Update Beebasm to support a graphic import config directive
-                    cfgbmp(bpp=1, double_width=true, width=16, height=24)
-
-                    ; TODO: Update Beebasm to support including bitmaps...
-                    incbmp("objects/01_rock.bmp");
-                    incbmp("objects/02_mist.bmp");                    
-                    incbmp("objects/03_bubbles.bmp");
-                    incbmp("objects/04_unsure.bmp");
-                    incbmp("objects/05_tiles.bmp");
-                    incbmp("objects/06_tubes.bmp");
-                    incbmp("objects/07_mises_sign.bmp");
-                    incbmp("objects/08_platform.bmp");
-                    incbmp("objects/09_hoverpad_base.bmp");
-                    incbmp("objects/10_smash_trap.bmp");
-                    incbmp("objects/11_zapway.bmp");
-                    incbmp("objects/12_zapper.bmp");
-                    incbmp("objects/13_mushroom.bmp");
-                    incbmp("objects/14_skeleton_left.bmp");
-                    incbmp("objects/15_skeleton_right.bmp");
-                    incbmp("objects/16_geodesic_dome.bmp");
-                    incbmp("objects/17_spikes_floor.bmp");
-                    incbmp("objects/18_spikes_wall.bmp");
-                    incbmp("objects/19_lift_middle.bmp");
-                    incbmp("objects/20_lift_base_both.bmp");
-                    incbmp("objects/21_lift_base_left.bmp");
-                    incbmp("objects/22_lift_base_right.bmp");
-                    incbmp("objects/23_lift_top.bmp");
-                    incbmp("objects/24_stars.bmp");
+                    incbmp bpp:1, width:16, height:24, path:"graphics/objects/"
+                    incbmp "01_rock.bmp"
+                    incbmp "02_mist.bmp"                    
+                    incbmp "03_bubbles.bmp"
+                    incbmp "04_unsure.bmp"
+                    incbmp "05_tiles.bmp"
+                    incbmp "06_tubes.bmp"
+                    incbmp "07_mises_sign.bmp"
+                    incbmp "08_platform.bmp"
+                    incbmp "09_hoverpad_base.bmp"
+                    incbmp "10_smash_trap.bmp"
+                    incbmp "11_zapway.bmp"
+                    incbmp "12_zapper.bmp"
+                    incbmp "13_mushroom.bmp"
+                    incbmp "14_skeleton_left.bmp"
+                    incbmp "15_skeleton_right.bmp"
+                    incbmp "16_geodesic_dome.bmp"
+                    incbmp "17_spikes_floor.bmp"
+                    incbmp "18_spikes_wall.bmp"
+                    incbmp "19_lift_middle.bmp"
+                    incbmp "20_lift_base_both.bmp"
+                    incbmp "21_lift_base_left.bmp"
+                    incbmp "22_lift_base_right.bmp"
+                    incbmp "23_lift_top.bmp"
+                    incbmp "24_stars.bmp"
 
                     ; org $5ee4 - 3 2bpp graphics for the plants (96 bytes per object)
-                    cfgbmp(bpp=2, double_width=true, width=16, height=24)
-                    incbmp("objects/25_plant_teeth.bmp");
-                    incbmp("objects/27_plant_flower.bmp");
-                    incbmp("objects/29_plant_middle.bmp");
+                    incbmp bpp:2
+                    incbmp "25_plant_teeth.bmp"
+                    incbmp "27_plant_flower.bmp"
+                    incbmp "29_plant_middle.bmp"
 
-                    ; A few mono graphics for the lower half of the map
-                    cfgbmp(bpp=1, double_width=true, width=16, height=24)
-                    incbmp("objects/31.bmp");
-                    incbmp("objects/32.bmp");
-                    incbmp("objects/33.bmp");
-                    incbmp("objects/34.bmp");
-                    incbmp("objects/35_access_gate_left.bmp");
-                    incbmp("objects/36_access_gate_right.bmp");
+                    ; 31 is a floor only found in the #LOwer half of the map
+                    incbmp bpp:1
+                    incbmp "31.bmp"
+
+                    ; Six sound blocks (48 bytes) instead of a graphic
+.MISC_SOUND_0       ;org $6034
+                    EQUB $10, $00, $F1, $00, $02, $00, $02, $00 
+.MISC_SOUND_1
+                    EQUB $11, $00, $00, $00, $FF, $00, $01, $00 
+.MISC_SOUND_2       ;org $6044
+                    EQUB $12, $00, $01, $00, $3C, $00, $02, $00 
+.MISC_SOUND_3
+                    EQUB $13, $00, $02, $00, $14, $00, $05, $00 
+.MISC_SOUND_4
+                    EQUB $12, $00, $03, $00, $64, $00, $01, $00 
+.MISC_SOUND_5
+                    EQUB $10, $00, $F9, $00, $02, $00, $01, $00
+
+                    ; Extra objects for the #LOwer half of the map
+                    ;org $6064
+                    incbmp "33.bmp"
+                    incbmp "34.bmp"
+                    incbmp "35_access_gate_left.bmp"
+                    incbmp "36_access_gate_right.bmp"
 
 .TELEPORT
-                    ; Teleporter                     
-                    cfgbmp(bpp=2, double_width=true, width=16, height=24)
-                    incbmp("objects/37_teleport.bmp");
+                    ; Teleporter
+                    incbmp bpp:2, "37_teleport.bmp"
 
                     ; org $6184
-                    00 b3 4b 0b 4b 86 4b dc 4b fb 4b fd 
-                    4b ff 4b ff 4b de 49 cf 4b 9d 4b ae 4b d2 4b f2 
-                    4b f1 4b b1 49 81 8a f8 4b f6 2b 77 33 55 22 ee 
-                    cc aa 44 11 32 23 11 88 c4 4c 88 22 55 33 77 44 
-                    aa cc ee 
+                    EQUB $00, $b3, $4b, $0b, $4b, $86, $4b, $dc, $4b, $fb, $4b, $fd 
+                    EQUB $4b, $ff, $4b, $ff, $4b, $de, $49, $cf, $4b, $9d, $4b, $ae, $4b, $d2, $4b, $f2 
+                    EQUB $4b, $f1, $4b, $b1, $49, $81, $8a, $f8, $4b, $f6, $2b, $77, $33, $55, $22, $ee 
+                    EQUB $cc, $aa, $44, $11, $32, $23, $11, $88, $c4, $4c, $88, $22, $55, $33, $77, $44 
+                    EQUB $aa, $cc, $ee
                     
                     ; org $61c3
-                    be 78 fc 88 c4 a9 e6 a9 e2 29 
+                    EQUB $be, $78, $fc, $88, $c4, $a9, $e6, $a9, $e2, $29 
                     ; org $61cd
-                    08 4e 28 
-                    40 a8 2a b6 46 96 22 c6 46 c8 34 f6 38 b4 4d a6 
-                    23 ec 02 de 2a 34 46 10 46 f6 25 f8 23 28 1b 3a 
-                    0b 48 2a 6a 40 36 29 16 47 38 22 2a 46 a0 23 60 
-                    43 8c 4c 0e 36 0a 33 3c 4f dc 4d e2 2d 54 24 56 
-                    2c de 4d 3e 4a 50 4a 52 36 e2 38 c2 42 72 4e 74 
-                    40 d2 23 74 33 
+                    EQUB $08, $4e, $28
+                    EQUB $40, $a8, $2a, $b6, $46, $96, $22, $c6, $46, $c8, $34, $f6, $38, $b4, $4d, $a6 
+                    EQUB $23, $ec, $02, $de, $2a, $34, $46, $10, $46, $f6, $25, $f8, $23, $28, $1b, $3a 
+                    EQUB $0b, $48, $2a, $6a, $40, $36, $29, $16, $47, $38, $22, $2a, $46, $a0, $23, $60 
+                    EQUB $43, $8c, $4c, $0e, $36, $0a, $33, $3c, $4f, $dc, $4d, $e2, $2d, $54, $24, $56 
+                    EQUB $2c, $de, $4d, $3e, $4a, $50, $4a, $52, $36, $e2, $38, $c2, $42, $72, $4e, $74 
+                    EQUB $40, $d2, $23, $74, $33 
 .TELEPORTERS
-                    EQUS "ROGAL" cc 1f 36 
-                    EQUS "VILGA" cc 28 3a 
-                    EQUS "TAMIS" cc 42 3a 
-                    EQUS "ASOGE" cc 96 3a 
-                    EQUS "DARAQ" cc a2 3a 
-                    EQUS "QUARK" cc d5 3a 
-                    EQUS "SAMAL" cc 21 3b 
-                    EQUS "LEXIA" cc 57 3b 
-                    EQUS "KOPEX" cc 7c 37 
-                    EQUS "URIAH" cc b1 3b 
-                    EQUS "HARIA" cc c9 3b 
-                    EQUS "OKRIP" cc cd 3b 
-                    EQUS "ARLON" cc d6 3b 
-                    EQUS "MISES" cc f3 47 
-                    EQUS "OTRUN" cc fa 4b 
+                    EQUS "ROGAL", $cc, $1f, $36 
+                    EQUS "VILGA", $cc, $28, $3a 
+                    EQUS "TAMIS", $cc, $42, $3a 
+                    EQUS "ASOGE", $cc, $96, $3a 
+                    EQUS "DARAQ", $cc, $a2, $3a 
+                    EQUS "QUARK", $cc, $d5, $3a 
+                    EQUS "SAMAL", $cc, $21, $3b 
+                    EQUS "LEXIA", $cc, $57, $3b 
+                    EQUS "KOPEX", $cc, $7c, $37 
+                    EQUS "URIAH", $cc, $b1, $3b 
+                    EQUS "HARIA", $cc, $c9, $3b 
+                    EQUS "OKRIP", $cc, $cd, $3b 
+                    EQUS "ARLON", $cc, $d6, $3b 
+                    EQUS "MISES", $cc, $f3, $47 
+                    EQUS "OTRUN", $cc, $fa, $4b 
 
-                    00 11 22 44 66 22 22 33 00 88 44 22 66 44 44 cc
+                    EQUB $00, $11, $22, $44, $66, $22, $22, $33, $00, $88, $44, $22, $66, $44, $44, $cc
 
 .L62ad              lda #$00
                     sta $8b
@@ -5716,13 +5758,13 @@ ROOM_BUFFER = $0440 (to be confirmed)
                     
 .L63d6              rts
                     
-                                         00 29 2c 2a 22 33 4c 34 42 
-                    3d 2c 3e 22 9a 4c 9b 42 9d 48 9e 42 c2 44 c3 46 
-                    ec 4c ed 42 f1 4c f2 22 69 2d 6a 3b 79 4c 7a 42 
-                    00 00 44 aa 11 00 00 00 00 00 44 aa 11 00 00 00 
-                    44 44 aa aa 22 11 11 00 44 44 aa aa 99 00 00 00 
-                    00 00 22 55 88 00 00 00 00 00 22 55 88 00 00 00 
-                    22 22 55 dd 99 00 00 00 22 22 55 55 44 88 88 00 
+                    EQUB $00, $29, $2c, $2a, $22, $33, $4c, $34, $42 
+                    EQUB $3d, $2c, $3e, $22, $9a, $4c, $9b, $42, $9d, $48, $9e, $42, $c2, $44, $c3, $46 
+                    EQUB $ec, $4c, $ed, $42, $f1, $4c, $f2, $22, $69, $2d, $6a, $3b, $79, $4c, $7a, $42 
+                    EQUB $00, $00, $44, $aa, $11, $00, $00, $00, $00, $00, $44, $aa, $11, $00, $00, $00 
+                    EQUB $44, $44, $aa, $aa, $22, $11, $11, $00, $44, $44, $aa, $aa, $99, $00, $00, $00 
+                    EQUB $00, $00, $22, $55, $88, $00, $00, $00, $00, $00, $22, $55, $88, $00, $00, $00 
+                    EQUB $22, $22, $55, $dd, $99, $00, $00, $00, $22, $22, $55, $55, $44, $88, $88, $00 
                     
 .RAND               ldx $9a
                     ldy $9b
@@ -5817,7 +5859,7 @@ ROOM_BUFFER = $0440 (to be confirmed)
                     sta $8f
                     jmp S65d4
                     
-                    dd 99 bb 99 ff 00 ff 99 dd 99 dd 99 ff 00 
+                    EQUB $dd, $99, $bb, $99, $ff, $00, $ff, $99, $dd, $99, $dd, $99, $ff, $00 
 
 
 .DRAW_OBJECT
@@ -6026,5 +6068,5 @@ ROOM_BUFFER = $0440 (to be confirmed)
                     EQUB $00, $00, $00, $00 
 
 .SCREEN_MEM
-                    ORG $6600; // should be unnecessary
-                    INCBIN "panel.bin"
+                    ;ORG $6600; // should be unnecessary
+                    INCBMP bpp:2, double_width:0, width:128, height:48, colour1:$FFFF, colour2:$FFFF00, colour3:$FF0000, path:"graphics/", "panel.bmp"

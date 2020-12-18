@@ -20,9 +20,14 @@
 
 .FONT
                     org $0900
-                    incbin "font.bin"
+                    incbmp bpp:1, width:360, height:8, double_width:0, path:"graphics/", "font.bmp"
 
-                    org $0a80
+                    ; Three tiny graphics for hoverpad stations
+                    EQUB $FF, $DD, $DD, $99, $99, $99, $FF, $00
+                    EQUB $FF, $99, $DD, $99, $BB, $99, $FF, $00
+                    EQUB $FF, $99, $DD, $99, $DD, $99, $FF, $00
+
+                    ;org $0a80
 .DRAW_TEXT          stx $8e
                     sty $8f
 
@@ -54,7 +59,7 @@
                     jmp next_char
                     
 .handle_colour      tay
-                    lda (COLOUR_MASKS-$81) + 1,y
+                    lda COLOUR_MASKS_TEXT-$81+1,y
                     sta $89
                     jmp next_char
                     
@@ -196,7 +201,7 @@
                     inc $8f
 .L0b72              jmp read_char
                     
-.COLOUR_MASKS
+.COLOUR_MASKS_TEXT
                     EQUB $00, $0f, $f0, $ff
 
 .UNPACK_MONO_GLYPH  
