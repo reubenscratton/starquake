@@ -1,0 +1,147 @@
+
+body {
+    margin: 0;
+    padding: 0;
+}
+
+.template {
+    display: none;
+}
+
+.console {
+    background-color: white;
+    height: 100%;
+    width: 100%;
+    padding: 8pt; 
+    font-size:10pt; 
+    font-family:Menlo, Monaco, 'Courier New', Courier, monospace;
+    text-align: justify;
+    overflow: auto;
+}
+
+.editor {
+    height: 100%;
+    width: 100%;
+}
+.tree {
+    background-color: white;
+    height: 100%;
+    width: 100%;
+    overflow: auto;
+}
+#navbar {
+    height: 30px;
+    background-color: #000;
+    overflow: hidden;
+}
+
+.navbar ul {
+    margin: 0;
+    padding: 0;
+    list-style-type: none;
+}
+
+.navbar li {
+    float: left;
+    text-align: center;
+}
+
+.navbar li a {
+    display: block;
+    color: white;
+    text-decoration: none;
+    padding: 5px 14px;
+}
+
+.navbar li a:hover {
+    background-color: #444;
+}
+
+.btn {
+  background-color: DodgerBlue;
+  border: none;
+  color: white;
+  font-size: 12px;
+  cursor: pointer;
+  width: 90px;
+  height: 40px;
+}
+.btn:hover {
+  background-color: RoyalBlue;
+}
+.btn:disabled {
+  background-color: #aaa;
+}
+  
+.initially-hidden {
+    display: none;
+}
+
+#dis, #mem, #hw {
+    height: 100%;
+    width: 100%;
+    background-color: white;
+    padding: 8pt; 
+    font-size:10pt; 
+    font-family:Menlo, Monaco, 'Courier New', Courier, monospace
+}
+
+.instr_bytes {
+    display: inline-block;
+    width: 6em;
+    color: #d0d0d0;
+}
+.mem_bytes {
+    display: inline-block;
+    width: 16em;
+    color: #a0a0a0;
+}
+.dis_addr {
+    display: inline-block;
+    width: 3em;
+    color: #66f;
+}
+.instr_mem_ref, .instr_instr_ref {
+    cursor: pointer;
+    color: #66f;
+}
+.current {
+    background-color: #c2f7f7;
+    font-weight: bold;
+}
+
+.highlight {
+    border: 1px solid #ddd;
+}
+
+.changed {
+    background-color: #f7a2a2;
+}
+h6.dbg { text-align: center }
+.via_regs {
+    display: inline-block;
+}
+
+.bp_gutter {
+    width: 8px !important;
+    height: 8px !important;
+    display: inline-block;
+    border-radius: 50%;
+    background-size: 8pt;
+    transform: translate(50%, 33%);
+}
+
+.bp_gutter.hint {
+    background-color: #ffe8e8;
+    border: 1px solid #CCC;
+}
+
+.bp_gutter.active {
+    background-color: #e02020;
+    border: 1px solid #000;
+}
+
+.number.hex {
+    background-color: #e02020;
+    color: #66fF00;
+}

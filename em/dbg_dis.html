@@ -1,0 +1,36 @@
+<div id="dis" class="initially-hidden">
+
+  <div id="registers">
+    <span class="register">PC</span>:<span id="cpu6502_pc">0000</span>
+    &nbsp;
+    <span class="register">A</span>:<span id="cpu6502_a">00</span>
+    &nbsp;
+    <span class="register">X</span>:<span id="cpu6502_x">00</span>
+    &nbsp;
+    <span class="register">Y</span>:<span id="cpu6502_y">00</span>
+    &nbsp;
+    <span class="register">S</span>:<span id="cpu6502_s">00</span>
+    &nbsp;
+    <span class="flag" id="cpu6502_flag_c">C</span><span class="flag" id="cpu6502_flag_z">Z</span><span
+        class="flag" id="cpu6502_flag_i">I</span><span class="flag" id="cpu6502_flag_d">D</span><span
+        class="flag" id="cpu6502_flag_v">V</span><span class="flag" id="cpu6502_flag_n">N</span>
+  </div>
+  <br>
+  <!--form class="form-inline" role="form" id="goto-dis-addr-form">
+      <div class="form-group">
+          <label accesskey="a" class="control-label"><span class="accesskey">A</span>ddr:</label>
+          <input type="text" class="form-control input-sm goto-addr" placeholder="$0000">
+      </div>
+  </form-->
+  <div id="disassembly">
+      <div class="template dis_elem">
+        <span class="bp_gutter"></span>
+        <span class="dis_addr">0000</span>&nbsp;
+        <span class="instr_bytes">11 22 33</span>&nbsp;
+        <!--span class="instr_asc">ABC</span-->
+        <span class="disassembly">LDA (&amp;70), X</span>
+      </div>
+  </div>
+
+</div>
+

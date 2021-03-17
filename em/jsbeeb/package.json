@@ -1,0 +1,17 @@
+{
+  "author": "Matt Godbolt <matt@godbolt.org>",
+  "name": "jsbeeb",
+  "description": "Emulate a BBC Micro",
+  "repository": "git@github.com:mattgodbolt/jsbeeb.git",
+  "version": "0.0.1",
+  "engines": {
+    "node": "0.10.x"
+  },
+  "main": "./app.js",
+  "dependencies": {
+      "requirejs": ">=2.1.15",
+      "nodeunit": "0.9.x",
+      "node-png": "0.4.x"
+  },
+  "license": "GPL-3.0"
+}
