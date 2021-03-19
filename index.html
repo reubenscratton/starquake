@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>BeebIDE</title>
+    <meta charset="UTF-8" />
+  </head>
+
+  <body>
+      <div id="root">
+          <div id="emulator">
+          <canvas class="screen" width="896" height="600" style:'display: inline-block;'></canvas><br>
+          <button class="btn" id="build" tabindex="-1" onmousedown="event.preventDefault();" onclick="buildAndBoot()">Build & Boot</button>
+          <button class="btn" id="break" tabindex="-1" onmousedown="event.preventDefault();" onclick="emulator.breakIn()">Break</button>
+          <button class="btn" id="stepIn" tabindex="-1" onmousedown="event.preventDefault();" disabled="true" onclick="emulator.stepIn()">Step In</button>
+          <button class="btn" id="stepOver" tabindex="-1" onmousedown="event.preventDefault();" disabled="true" onclick="emulator.stepOver()">Step Over</button>
+          <button class="btn" id="stepOut" tabindex="-1" onmousedown="event.preventDefault();" disabled="true" onclick="emulator.stepOut()">Step Out</button>
+          </div>
+      </div>
+          
+      <script src="./lib/require.js"></script>
+      <script src="./main.js"></script>
+  </body>
+</html>
