@@ -292,14 +292,9 @@ define(function (require) {
 
     // *** END KEYBOARD
 
-    function Emulator(container, state) {
-        this.container = container;
-        this.hub = container.layoutManager.eventHub;
-    }
-
-    Emulator.prototype.init = function() {
-        this.root = this.container.getElement().html($('#emulator').html());
-        this.canvas = canvasLib.bestCanvas(this.root.find('.screen')[0]);
+    function Emulator(root) {
+        this.container = root.find('#emulator');
+        this.canvas = canvasLib.bestCanvas(this.container.find('.screen')[0]);
         this.frames = 0;
         this.frameSkip = 0;
         this.video = new Video.Video(this.canvas.fb32, _.bind(this.paint, this));
@@ -356,8 +351,8 @@ define(function (require) {
             this.resizeScreen();
         }, this);
 
-        this.hub.on('start', this.onStart, this);
-        this.hub.on('breakpointsChanged', this.onBreakpointsChanged, this);
+        //this.hub.on('start', this.onStart, this);
+        //this.hub.on('breakpointsChanged', this.onBreakpointsChanged, this);
 
         // Start!
         cpu.reset(true);

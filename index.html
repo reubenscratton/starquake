@@ -3,21 +3,257 @@
   <head>
     <title>BeebIDE</title>
     <meta charset="UTF-8" />
+
+    <style>
+      .btn {
+        background-color: DodgerBlue;
+        border: none;
+        color: white;
+        font-size: 12px;
+        cursor: pointer;
+        width: 90px;
+        height: 40px;
+      }
+      .btn:hover {
+        background-color: RoyalBlue;
+      }
+      .btn:disabled {
+        background-color: #aaa;
+      }
+
+      /* Style the tab */
+      .tab {
+        overflow: hidden;
+        border: 1px solid #ccc;
+        background-color: #f1f1f1;
+      }
+      
+      /* Style the buttons inside the tab */
+      .tab button {
+        background-color: inherit;
+        float: left;
+        border: none;
+        outline: none;
+        cursor: pointer;
+        padding: 14px 16px;
+        transition: 0.3s;
+        font-size: 17px;
+      }
+      
+      /* Change background color of buttons on hover */
+      .tab button:hover {
+        background-color: #ddd;
+      }
+      
+      /* Create an active/current tablink class */
+      .tab button.active {
+        background-color: #ccc;
+      }
+      
+      /* Style the tab content */
+      .tabcontent {
+        display: none;
+        padding: 6px 12px;
+        border: 1px solid #ccc;
+        border-top: none;
+      }
+
+      #dbgDis, #dbgMem, #dbgHw {
+        width: 100%;
+        padding: 8pt; 
+        font-size:10pt; 
+        font-family:Menlo, Monaco, 'Courier New', Courier, monospace
+      }
+
+      .instr_bytes {
+        display: inline-block;
+        width: 6em;
+        color: #d0d0d0;
+      }
+      .mem_bytes {
+        display: inline-block;
+        width: 16em;
+        color: #a0a0a0;
+      }
+    .dis_addr {
+        display: inline-block;
+        width: 3em;
+        color: #66f;
+    }
+    .instr_mem_ref, .instr_instr_ref {
+        cursor: pointer;
+        color: #66f;
+    }
+    .current {
+        background-color: #c2f7f7;
+        font-weight: bold;
+    }
+
+    .highlight {
+        border: 1px solid #ddd;
+    }
+
+    .changed {
+        background-color: #f7a2a2;
+    }
+    h6.dbg { text-align: center }
+    .via_regs {
+        display: inline-block;
+    }
+
+    .bp_gutter {
+        width: 8px !important;
+        height: 8px !important;
+        display: inline-block;
+        border-radius: 50%;
+        background-size: 8pt;
+        transform: translate(50%, 33%);
+    }
+
+    .bp_gutter.hint {
+        background-color: #ffe8e8;
+        border: 1px solid #CCC;
+    }
+
+    .bp_gutter.active {
+        background-color: #e02020;
+        border: 1px solid #000;
+    }
+
+    .number.hex {
+        background-color: #e02020;
+        color: #66fF00;
+    }
+      </style>
   </head>
 
   <body>
       <div id="root">
+
+          <!-- jsBeeb window -->
           <div id="emulator">
-          <canvas class="screen" width="896" height="600" style:'display: inline-block;'></canvas><br>
-          <button class="btn" id="build" tabindex="-1" onmousedown="event.preventDefault();" onclick="buildAndBoot()">Build & Boot</button>
-          <button class="btn" id="break" tabindex="-1" onmousedown="event.preventDefault();" onclick="emulator.breakIn()">Break</button>
-          <button class="btn" id="stepIn" tabindex="-1" onmousedown="event.preventDefault();" disabled="true" onclick="emulator.stepIn()">Step In</button>
-          <button class="btn" id="stepOver" tabindex="-1" onmousedown="event.preventDefault();" disabled="true" onclick="emulator.stepOver()">Step Over</button>
-          <button class="btn" id="stepOut" tabindex="-1" onmousedown="event.preventDefault();" disabled="true" onclick="emulator.stepOut()">Step Out</button>
+            <canvas class="screen" width="896" height="600" style:'display: inline-block;'></canvas><br>
+            <button class="btn" id="build" tabindex="-1" onmousedown="event.preventDefault();" onclick="buildAndBoot()">Build & Boot</button>
+            <button class="btn" id="break" tabindex="-1" onmousedown="event.preventDefault();" onclick="emulator.breakIn()">Break</button>
+            <button class="btn" id="stepIn" tabindex="-1" onmousedown="event.preventDefault();" disabled="true" onclick="emulator.stepIn()">Step In</button>
+            <button class="btn" id="stepOver" tabindex="-1" onmousedown="event.preventDefault();" disabled="true" onclick="emulator.stepOver()">Step Over</button>
+            <button class="btn" id="stepOut" tabindex="-1" onmousedown="event.preventDefault();" disabled="true" onclick="emulator.stepOut()">Step Out</button>
           </div>
-      </div>
+
+          <!-- Tabs header -->
+          <div class="tab">
+            <button class="tablinks" onclick="showTab(event, 'dbgDis')">Disassembly</button>
+            <button class="tablinks" onclick="showTab(event, 'dbgMem')">Memory</button>
+            <button class="tablinks" onclick="showTab(event, 'dbgHw')">Hardware</button>
+          </div>
+
+          <!-- Disassembly Tab -->
+          <div id="dbgDis" class="tabcontent">
+            <div id="registers">
+              <span class="register">PC</span>:<span id="cpu6502_pc">0000</span>&nbsp;
+              <span class="register">A</span>:<span id="cpu6502_a">00</span>&nbsp;
+              <span class="register">X</span>:<span id="cpu6502_x">00</span>&nbsp;
+              <span class="register">Y</span>:<span id="cpu6502_y">00</span>&nbsp;
+              <span class="register">S</span>:<span id="cpu6502_s">00</span>&nbsp;
+              <span class="flag" id="cpu6502_flag_c">C</span><span class="flag" id="cpu6502_flag_z">Z</span><span
+                  class="flag" id="cpu6502_flag_i">I</span><span class="flag" id="cpu6502_flag_d">D</span><span
+                  class="flag" id="cpu6502_flag_v">V</span><span class="flag" id="cpu6502_flag_n">N</span>
+            </div>
+            <br>
+            <div id="disassembly">
+                <div class="template dis_elem">
+                  <span class="bp_gutter"></span>
+                  <span class="dis_addr">0000</span>&nbsp;
+                  <span class="instr_bytes">11 22 33</span>&nbsp;
+                  <!--span class="instr_asc">ABC</span-->
+                  <span class="disassembly">LDA (&amp;70), X</span>
+                </div>
+            </div>
+          </div>
           
-      <script src="./lib/require.js"></script>
-      <script src="./main.js"></script>
+          <!-- Memory Tab -->
+          <div id="dbgMem" class="tabcontent">
+            <div id="memory">
+              <div class="template">
+                <span class="dis_addr">0000</span>
+                <span class="mem_bytes">
+                  <span>11</span> <span>22</span> <span>33</span> <span>44</span> <span>55</span> <span>66</span> <span>77</span> <span>88</span>
+                </span>
+                <span class="mem_asc">
+                  <span>A</span><span>A</span><span>A</span><span>A</span><span>A</span><span>A</span><span>A</span><span>A</span>
+                </span>
+              </div>
+            </div>
+          </div>
+          
+          <!-- Hardware Tab -->
+          <div id="dbgHw" class="tabcontent">
+            <div class="via_regs" id="sysvia">
+              <h6 class="dbg">System VIA</h6>
+              <table>
+                  <tbody>
+                  <tr class="template">
+                      <th><span class="register"></span>:</th>
+                      <td class="value"></td>
+                  </tr>
+                  </tbody>
+              </table>
+            </div>
+            <div class="via_regs" id="uservia">
+              <h6 class="dbg">User VIA</h6>
+              <table>
+                  <tbody>
+                  <tr class="template">
+                      <th><span class="register"></span>:</th>
+                      <td class="value"></td>
+                  </tr>
+                  </tbody>
+              </table>
+          </div>
+          <div class="via_regs" id="crtc_debug">
+            <div class="via_regs" id="crtc_state">
+              <h6 class="dbg">6845 state</h6>
+              <table>
+                  <tbody>
+                  <tr class="template">
+                      <th><span class="register"></span>:</th>
+                      <td class="value"></td>
+                  </tr>
+                  </tbody>
+              </table>
+          </div>
+            <div class="via_regs" id="crtc_regs">
+              <h6 class="dbg">6845 regs</h6>
+              <table>
+                  <tbody>
+                  <tr class="template">
+                      <th><span class="register"></span>:</th>
+                      <td class="value"></td>
+                  </tr>
+                  </tbody>
+              </table>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <script>
+      function showTab(evt, tabId) {
+        var i, tabcontent, tablinks;
+        tabcontent = document.getElementsByClassName("tabcontent");
+        for (i = 0; i < tabcontent.length; i++) {
+          tabcontent[i].style.display = "none";
+        }
+        tablinks = document.getElementsByClassName("tablinks");
+        for (i = 0; i < tablinks.length; i++) {
+          tablinks[i].className = tablinks[i].className.replace(" active", "");
+        }
+        document.getElementById(tabId).style.display = "block";
+        evt.currentTarget.className += " active";
+      }
+    </script>
+    
+    <script src="./lib/require.js"></script>
+    <script src="./main.js"></script>
   </body>
 </html>
